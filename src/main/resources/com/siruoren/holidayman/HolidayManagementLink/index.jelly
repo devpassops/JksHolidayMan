@@ -1,0 +1,69 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+    <l:layout title="${%pageTitle}">
+        <l:main-panel>
+
+            <h1>${%pageTitle}</h1>
+            <p>${%pageDescription}</p>
+
+            <!-- Import Section -->
+            <f:section title="${%importSection}">
+                <f:form method="post" action="importYear" name="importForm">
+                    <f:entry title="${%importYear}" description="${%importYearDesc}">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="number" name="year" value="${it.currentYear}" min="2020" max="2099"
+                                   style="width:100px;padding:4px 8px;"/>
+                            <f:submit value="${%importButton}"/>
+                        </div>
+                    </f:entry>
+                </f:form>
+            </f:section>
+
+            <!-- Add Holiday Section -->
+            <f:section title="${%addSection}">
+                <f:form method="post" action="addHoliday" name="addForm">
+                    <f:entry title="${%dateField}">
+                        <input type="date" name="date" style="padding:4px 8px;"/>
+                    </f:entry>
+                    <f:entry title="${%nameField}">
+                        <input type="text" name="name" style="width:200px;padding:4px 8px;"/>
+                    </f:entry>
+                    <f:entry title="${%typeField}">
+                        <select name="type" style="padding:4px 8px;">
+                            <option value="HOLIDAY">${%typeHoliday}</option>
+                            <option value="WORKDAY">${%typeWorkday}</option>
+                        </select>
+                    </f:entry>
+                    <f:entry>
+                        <f:submit value="${%addButton}"/>
+                    </f:entry>
+                </f:form>
+            </f:section>
+
+            <!-- Holiday Data Section -->
+            <f:section title="${%dataSection}">
+                <div id="holiday-data-container" data-rooturl="${rootURL}/">
+                    <j:choose>
+                        <j:when test="${it.availableYears.isEmpty()}">
+                            <p style="color:#666;">${%noData}</p>
+                        </j:when>
+                        <j:otherwise>
+                            <div id="year-tabs" style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;">
+                                <j:forEach var="year" items="${it.availableYears}">
+                                    <a href="#" class="year-tab" data-year="${year}"
+                                       style="padding:6px 14px;background:#e8e8e8;border-radius:4px;text-decoration:none;color:#333;">
+                                        ${year}
+                                    </a>
+                                </j:forEach>
+                            </div>
+                            <div id="holiday-table-container"></div>
+                        </j:otherwise>
+                    </j:choose>
+                </div>
+            </f:section>
+
+            <link rel="stylesheet" href="${rootURL}/plugin/holiday-management/css/holiday-management.css"/>
+            <script src="${rootURL}/plugin/holiday-management/js/holiday-management.js"></script>
+        </l:main-panel>
+    </l:layout>
+</j:jelly>

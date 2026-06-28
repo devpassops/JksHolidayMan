@@ -1,0 +1,97 @@
+.holiday-management .year-tab {
+    padding: 6px 14px;
+    background: #e8e8e8;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+    cursor: pointer;
+    border: none;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.holiday-management .year-tab:hover {
+    background: #d0d0d0;
+}
+
+.holiday-management .year-tab.active {
+    background: #4b758b;
+    color: #fff;
+}
+
+.holiday-management .holiday-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+}
+
+.holiday-management .holiday-table th {
+    background: #f0f0f0;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 2px solid #ddd;
+    font-weight: bold;
+}
+
+.holiday-management .holiday-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.holiday-management .holiday-table tr:hover td {
+    background: #f8f8f8;
+}
+
+.holiday-management .type-holiday {
+    color: #d32f2f;
+    font-weight: bold;
+}
+
+.holiday-management .type-workday {
+    color: #388e3c;
+    font-weight: bold;
+}
+
+.holiday-management .delete-btn {
+    color: #d32f2f;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.holiday-management .delete-btn:hover {
+    text-decoration: underline;
+}
+
+.holiday-management .section-header {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #ddd;
+}
+
+.holiday-management .import-success {
+    color: #388e3c;
+    padding: 8px;
+    background: #e8f5e9;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.holiday-management .import-error {
+    color: #d32f2f;
+    padding: 8px;
+    background: #ffebee;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.holiday-management .count-badge {
+    display: inline-block;
+    background: #4b758b;
+    color: #fff;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 12px;
+    margin-left: 6px;
+}

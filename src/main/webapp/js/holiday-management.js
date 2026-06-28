@@ -1,0 +1,106 @@
+(function () {
+    "use strict";
+
+    function getRootUrl() {
+        var el = document.getElementById("holiday-data-container");
+        if (el && el.dataset.rooturl) return el.dataset.rooturl;
+        return document.head.dataset.rooturl || "";
+    }
+
+    function loadYearHolidays(year) {
+        var container = document.getElementById("holiday-table-container");
+        if (!container) return;
+
+        var url = getRootUrl() + "manage/holiday-management/holidaysJson?year=" + year;
+
+        fetch(url)
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                renderHolidayTable(container, data, year);
+            })
+            .catch(function (err) {
+                container.innerHTML = '<p style="color:red;">Failed to load holiday data: ' + err.message + '</p>';
+            });
+    }
+
+    function renderHolidayTable(container, holidays, year) {
+        if (!holidays || holidays.length === 0) {
+            container.innerHTML = '<p style="color:#666;">No holiday data for year ' + year + '</p>';
+            return;
+        }
+
+        var html = '<table class="holiday-table">';
+        html += '<thead><tr><th>Date</th><th>Name</th><th>Type</th><th>Action</th></tr></thead>';
+        html += '<tbody>';
+
+        holidays.forEach(function (h) {
+            var typeClass = h.isHoliday ? 'type-holiday' : 'type-workday';
+            var typeLabel = h.isHoliday ? 'Holiday' : 'Workday (Adjusted)';
+            html += '<tr>';
+            html += '<td>' + h.date + '</td>';
+            html += '<td>' + (h.name || '-') + '</td>';
+            html += '<td class="' + typeClass + '">' + typeLabel + '</td>';
+            html += '<td><a href="#" class="delete-btn" data-date="' + h.date + '" title="Delete">Delete</a></td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+
+        var holidayCount = holidays.filter(function (h) { return h.isHoliday; }).length;
+        var workdayCount = holidays.filter(function (h) { return !h.isHoliday; }).length;
+        html += '<p style="margin-top:8px;color:#666;font-size:12px;">';
+        html += 'Total: ' + holidays.length + ' entries';
+        html += ' (Holidays: ' + holidayCount + ', Adjusted Workdays: ' + workdayCount + ')';
+        html += '</p>';
+
+        container.innerHTML = html;
+
+        // Attach delete handlers
+        container.querySelectorAll('.delete-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (confirm('Are you sure you want to delete the holiday entry for ' + btn.dataset.date + '?')) {
+                    deleteHoliday(btn.dataset.date, year);
+                }
+            });
+        });
+    }
+
+    function deleteHoliday(date, year) {
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = getRootUrl() + 'manage/holiday-management/deleteHoliday';
+        var dateInput = document.createElement('input');
+        dateInput.type = 'hidden';
+        dateInput.name = 'date';
+        dateInput.value = date;
+        form.appendChild(dateInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    function initYearTabs() {
+        var tabs = document.querySelectorAll('.year-tab');
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function (e) {
+                e.preventDefault();
+                tabs.forEach(function (t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+                loadYearHolidays(tab.dataset.year);
+            });
+        });
+
+        // Auto-click first tab
+        if (tabs.length > 0) {
+            tabs[0].classList.add('active');
+            loadYearHolidays(tabs[0].dataset.year);
+        }
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initYearTabs);
+    } else {
+        initYearTabs();
+    }
+})();

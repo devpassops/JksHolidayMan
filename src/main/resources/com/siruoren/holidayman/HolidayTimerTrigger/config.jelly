@@ -1,0 +1,9 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+    <f:entry title="${%schedule}" field="spec" description="${%scheduleDesc}">
+        <f:textbox/>
+    </f:entry>
+    <f:entry title="${%holidayPolicy}" field="holidayPolicy" description="${%holidayPolicyDesc}">
+        <f:enum field="holidayPolicy" enumName="com.siruoren.holidayman.HolidayPolicy"/>
+    </f:entry>
+</j:jelly>
