@@ -113,14 +113,22 @@
         // Activate the current year tab or first tab
         var activeTab = currentYearTab || tabs[0];
         activeTab.classList.add('active');
+        activeTab.style.backgroundColor = '#4a90d9';
+        activeTab.style.color = '#fff';
         loadYearHolidays(activeTab.dataset.year);
 
         // Add click handlers for year tabs
         tabs.forEach(function (tab) {
             tab.addEventListener('click', function (e) {
                 e.preventDefault();
-                tabs.forEach(function (t) { t.classList.remove('active'); });
+                tabs.forEach(function (t) { 
+                    t.classList.remove('active'); 
+                    t.style.backgroundColor = '#e8e8e8';
+                    t.style.color = '#333';
+                });
                 tab.classList.add('active');
+                tab.style.backgroundColor = '#4a90d9';
+                tab.style.color = '#fff';
                 loadYearHolidays(tab.dataset.year);
             });
         });

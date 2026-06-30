@@ -40,8 +40,12 @@
         function activateTab(tab) {
             tabs.forEach(function(t) {
                 t.classList.remove('active');
+                t.style.backgroundColor = '#e8e8e8';
+                t.style.color = '#333';
             });
             tab.classList.add('active');
+            tab.style.backgroundColor = '#4a90d9';
+            tab.style.color = '#fff';
             var year = tab.getAttribute('data-year');
             loadHolidayData(year);
         }

@@ -3,11 +3,13 @@ package com.siruoren.holidayman;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.ManagementLink;
+import hudson.security.Permission;
 import jenkins.model.Jenkins;
 import org.apache.commons.fileupload.FileItem;
 import org.kohsuke.stapler.HttpRedirect;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerProxy;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.verb.POST;
@@ -26,14 +28,23 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @Extension
-public class HolidayManagementLink extends ManagementLink {
+public class HolidayManagementLink extends ManagementLink implements StaplerProxy {
 
     private static final Logger LOGGER = Logger.getLogger(HolidayManagementLink.class.getName());
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Override
     public String getIconFileName() {
+        if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+            return null;
+        }
         return "/plugin/holiday-management/images/calendar.svg";
+    }
+
+    @Override
+    public Object getTarget() {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        return this;
     }
 
     @Override
@@ -49,6 +60,11 @@ public class HolidayManagementLink extends ManagementLink {
     @Override
     public String getDescription() {
         return Messages.HolidayManagementLink_description();
+    }
+
+    @Override
+    public Permission getRequiredPermission() {
+        return Jenkins.ADMINISTER;
     }
 
     public List<Integer> getAvailableYears() {
@@ -122,7 +138,7 @@ public class HolidayManagementLink extends ManagementLink {
      * Export: download holiday data for a specific year as JSON.
      */
     public void doExportYear(@QueryParameter int year, StaplerResponse rsp) throws IOException {
-        Jenkins.get().checkPermission(Jenkins.READ);
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         validateYear(year);
         String json = HolidayService.getInstance().exportYearToJson(year);
         LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " exported holidays for year " + year);
@@ -176,7 +192,6 @@ public class HolidayManagementLink extends ManagementLink {
     }
 
     public String getHolidaysJson(int year) {
-        Jenkins.get().checkPermission(Jenkins.READ);
         validateYear(year);
         List<HolidayDate> holidays = getHolidaysForYear(year);
         JSONArray array = new JSONArray();
@@ -195,7 +210,6 @@ public class HolidayManagementLink extends ManagementLink {
      * AJAX endpoint for fetching holiday data as JSON.
      */
     public void doHolidaysJson(@QueryParameter int year, StaplerResponse rsp) throws Exception {
-        Jenkins.get().checkPermission(Jenkins.READ);
         rsp.setContentType("application/json;charset=UTF-8");
         rsp.getWriter().write(getHolidaysJson(year));
     }
