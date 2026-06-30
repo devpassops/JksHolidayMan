@@ -9,13 +9,31 @@
 
         if (tabs.length === 0) return;
 
-        // Activate first tab
-        activateTab(tabs[0]);
+        // Find and activate current year tab, or first tab if current year not found
+        var currentYear = new Date().getFullYear();
+        var currentYearTab = null;
+        tabs.forEach(function(tab) {
+            if (parseInt(tab.getAttribute('data-year')) === currentYear) {
+                currentYearTab = tab;
+            }
+        });
+        activateTab(currentYearTab || tabs[0]);
 
+        // Add click handlers for year tabs
         tabs.forEach(function(tab) {
             tab.addEventListener('click', function(e) {
                 e.preventDefault();
                 activateTab(tab);
+            });
+        });
+
+        // Add click handlers for delete year buttons
+        var deleteYearBtns = container.querySelectorAll('.delete-year-btn');
+        deleteYearBtns.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var year = btn.getAttribute('data-year');
+                deleteYear(year);
             });
         });
 
@@ -70,6 +88,9 @@
     window.deleteHoliday = function(date) {
         if (!confirm('Delete holiday entry for ' + date + '?')) return;
         
+        var container = document.getElementById('holiday-data-container');
+        var rootUrl = container.getAttribute('data-rooturl');
+        
         // Fetch crumb token for CSRF protection
         fetch(rootUrl + 'crumbIssuer/api/json')
             .then(function(response) { return response.json(); })
@@ -91,6 +112,42 @@
                 dateInput.name = 'date';
                 dateInput.value = date;
                 form.appendChild(dateInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            })
+            .catch(function(err) {
+                alert('Failed to get security token: ' + err.message);
+            });
+    };
+
+    window.deleteYear = function(year) {
+        if (!confirm('Delete all holiday data for year ' + year + '? This action cannot be undone.')) return;
+        
+        var container = document.getElementById('holiday-data-container');
+        var rootUrl = container.getAttribute('data-rooturl');
+        
+        // Fetch crumb token for CSRF protection
+        fetch(rootUrl + 'crumbIssuer/api/json')
+            .then(function(response) { return response.json(); })
+            .then(function(crumbData) {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = rootUrl + 'manage/holiday-management/deleteYear';
+                
+                // Add crumb token
+                var crumbInput = document.createElement('input');
+                crumbInput.type = 'hidden';
+                crumbInput.name = crumbData.crumbRequestField;
+                crumbInput.value = crumbData.crumb;
+                form.appendChild(crumbInput);
+                
+                // Add year parameter
+                var yearInput = document.createElement('input');
+                yearInput.type = 'hidden';
+                yearInput.name = 'year';
+                yearInput.value = year;
+                form.appendChild(yearInput);
                 
                 document.body.appendChild(form);
                 form.submit();

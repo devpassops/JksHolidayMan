@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.ManagementLink;
 import jenkins.model.Jenkins;
+import org.apache.commons.fileupload.FileItem;
 import org.kohsuke.stapler.HttpRedirect;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
@@ -84,10 +85,15 @@ public class HolidayManagementLink extends ManagementLink {
     public HttpResponse doImportFile(StaplerRequest req) throws Exception {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
         try {
-            String json = readFileFromRequest(req);
-            if (json == null || json.isEmpty()) {
-                throw new IllegalArgumentException("No file content received");
+            FileItem fileItem = req.getFileItem("file");
+            if (fileItem == null || fileItem.getSize() == 0) {
+                throw new IllegalArgumentException("No file uploaded or file is empty");
             }
+            
+            String json = new String(fileItem.get(), StandardCharsets.UTF_8);
+            LOGGER.info("Received file: " + fileItem.getName() + ", size: " + json.length() + " chars");
+            LOGGER.info("First 100 chars: " + json.substring(0, Math.min(100, json.length())));
+            
             int count = HolidayService.getInstance().importFromJson(json);
             LOGGER.info("Imported " + count + " entries from uploaded file");
             return new HttpRedirect("index");
@@ -166,18 +172,6 @@ public class HolidayManagementLink extends ManagementLink {
         Jenkins.get().checkPermission(Jenkins.READ);
         rsp.setContentType("application/json;charset=UTF-8");
         rsp.getWriter().write(getHolidaysJson(year));
-    }
-
-    private String readFileFromRequest(StaplerRequest req) throws IOException {
-        StringBuilder content = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(req.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                content.append(line);
-            }
-        }
-        return content.toString();
     }
 
     private void writeJsonDownload(StaplerResponse rsp, String json, String filename) throws IOException {

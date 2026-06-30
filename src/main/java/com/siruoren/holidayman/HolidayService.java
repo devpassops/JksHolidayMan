@@ -160,7 +160,15 @@ public class HolidayService {
      * or {"2026": [{"date":"2026-01-01","name":"元旦","type":"HOLIDAY"}, ...]}
      */
     public int importFromJson(@NonNull String json) throws Exception {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("JSON content is empty");
+        }
+        
         String trimmed = json.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("JSON content contains only whitespace");
+        }
+        
         List<HolidayDate> allHolidays = new ArrayList<>();
 
         if (trimmed.startsWith("[")) {
@@ -183,7 +191,8 @@ public class HolidayService {
                 }
             }
         } else {
-            throw new IllegalArgumentException("Invalid JSON format: must start with '[' or '{'");
+            throw new IllegalArgumentException("Invalid JSON format: must start with '[' or '{'. First character: '" + 
+                (trimmed.length() > 0 ? trimmed.substring(0, 1) : "empty") + "'");
         }
 
         if (allHolidays.isEmpty()) {

@@ -61,3 +61,12 @@
 #holiday-data-container .btn-delete:hover {
     background-color: #c92a2a;
 }
+
+#holiday-data-container .delete-year-btn {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+#holiday-data-container .delete-year-btn:hover {
+    background-color: #ffcdd2 !important;
+}

@@ -21,15 +21,14 @@
 
             <!-- Offline Import Section -->
             <f:section title="${%importOfflineSection}">
-                <f:entry description="${%importFileDesc}">
-                    <form method="post" action="importFile" enctype="multipart/form-data"
-                          style="display:flex;align-items:center;gap:8px;">
-                        <input type="file" name="file" accept=".json" style="max-width:400px;"/>
-                        <input type="submit" value="${%importFileButton}"
-                               class="jenkins-button jenkins-button--primary"
-                               style="padding:4px 12px;"/>
-                    </form>
-                </f:entry>
+                <f:form method="post" action="importFile" enctype="multipart/form-data">
+                    <f:entry description="${%importFileDesc}">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input type="file" name="file" accept=".json" style="max-width:400px;"/>
+                            <f:submit value="${%importFileButton}"/>
+                        </div>
+                    </f:entry>
+                </f:form>
             </f:section>
 
             <!-- Export Section -->
@@ -82,10 +81,16 @@
                         <j:otherwise>
                             <div id="year-tabs" style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;">
                                 <j:forEach var="year" items="${it.availableYears}">
-                                    <a href="#" class="year-tab" data-year="${year}"
-                                       style="padding:6px 14px;background:#e8e8e8;border-radius:4px;text-decoration:none;color:#333;">
-                                        ${year}
-                                    </a>
+                                    <div style="display:flex;align-items:center;gap:4px;">
+                                        <a href="#" class="year-tab" data-year="${year}"
+                                           style="padding:6px 14px;background:#e8e8e8;border-radius:4px;text-decoration:none;color:#333;">
+                                            ${year}
+                                        </a>
+                                        <a href="#" class="delete-year-btn" data-year="${year}" title="Delete all data for ${year}"
+                                           style="padding:4px 8px;background:#ffebee;border-radius:4px;text-decoration:none;color:#d32f2f;font-size:12px;">
+                                            ×
+                                        </a>
+                                    </div>
                                 </j:forEach>
                             </div>
                             <div id="holiday-table-container"></div>
