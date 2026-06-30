@@ -83,7 +83,7 @@
                                 <j:forEach var="year" items="${it.availableYears}">
                                     <div style="display:flex;align-items:center;gap:4px;">
                                         <a href="#" class="year-tab" data-year="${year}"
-                                           style="padding:6px 14px;background:#e8e8e8;border-radius:4px;text-decoration:none;color:#333;">
+                                           style="padding:6px 14px;border-radius:4px;text-decoration:none;color:#333;">
                                             ${year}
                                         </a>
                                         <a href="#" class="delete-year-btn" data-year="${year}" title="Delete all data for ${year}"

@@ -69,8 +69,11 @@ public class HolidayManagementLink extends ManagementLink {
     @POST
     public HttpResponse doImportYear(@QueryParameter int year) throws Exception {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        validateYear(year);
         try {
             int count = HolidayService.getInstance().importFromApi(year);
+            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " imported " + count + 
+                " holidays for year " + year);
             return new HttpRedirect("index");
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to import holidays for year " + year, e);
@@ -90,12 +93,24 @@ public class HolidayManagementLink extends ManagementLink {
                 throw new IllegalArgumentException("No file uploaded or file is empty");
             }
             
+            // Validate file size (max 1MB)
+            if (fileItem.getSize() > 1024 * 1024) {
+                throw new IllegalArgumentException("File too large. Maximum size is 1MB");
+            }
+            
+            // Validate file extension
+            String fileName = fileItem.getName().toLowerCase();
+            if (!fileName.endsWith(".json")) {
+                throw new IllegalArgumentException("Only JSON files are allowed");
+            }
+            
             String json = new String(fileItem.get(), StandardCharsets.UTF_8);
-            LOGGER.info("Received file: " + fileItem.getName() + ", size: " + json.length() + " chars");
-            LOGGER.info("First 100 chars: " + json.substring(0, Math.min(100, json.length())));
+            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " uploaded file: " + 
+                fileItem.getName() + ", size: " + json.length() + " chars");
             
             int count = HolidayService.getInstance().importFromJson(json);
-            LOGGER.info("Imported " + count + " entries from uploaded file");
+            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " imported " + 
+                count + " entries from uploaded file");
             return new HttpRedirect("index");
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to import holidays from file", e);
@@ -108,7 +123,9 @@ public class HolidayManagementLink extends ManagementLink {
      */
     public void doExportYear(@QueryParameter int year, StaplerResponse rsp) throws IOException {
         Jenkins.get().checkPermission(Jenkins.READ);
+        validateYear(year);
         String json = HolidayService.getInstance().exportYearToJson(year);
+        LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " exported holidays for year " + year);
         writeJsonDownload(rsp, json, "holidays-" + year + ".json");
     }
 
@@ -116,8 +133,9 @@ public class HolidayManagementLink extends ManagementLink {
      * Export: download all holiday data as JSON.
      */
     public void doExportAll(StaplerResponse rsp) throws IOException {
-        Jenkins.get().checkPermission(Jenkins.READ);
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER); // Require admin for full export
         String json = HolidayService.getInstance().exportAllToJson();
+        LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " exported all holiday data");
         writeJsonDownload(rsp, json, "holidays-all.json");
     }
 
@@ -127,31 +145,39 @@ public class HolidayManagementLink extends ManagementLink {
             @QueryParameter String name,
             @QueryParameter String type) {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-        try {
-            LocalDate.parse(date, FORMATTER);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("Invalid date format: " + date);
-        }
+        validateDate(date);
+        validateType(type);
         HolidayDate hd = new HolidayDate(date, name != null ? name : "", type != null ? type : "HOLIDAY");
         HolidayService.getInstance().addHoliday(hd);
+        LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " added holiday: " + date);
         return new HttpRedirect("index");
     }
 
     @POST
     public HttpResponse doDeleteHoliday(@QueryParameter String date) {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-        HolidayService.getInstance().removeHoliday(date);
+        validateDate(date);
+        boolean removed = HolidayService.getInstance().removeHoliday(date);
+        if (removed) {
+            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted holiday: " + date);
+        }
         return new HttpRedirect("index");
     }
 
     @POST
     public HttpResponse doDeleteYear(@QueryParameter int year) {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-        HolidayService.getInstance().removeYear(year);
+        validateYear(year);
+        boolean removed = HolidayService.getInstance().removeYear(year);
+        if (removed) {
+            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted all holidays for year " + year);
+        }
         return new HttpRedirect("index");
     }
 
     public String getHolidaysJson(int year) {
+        Jenkins.get().checkPermission(Jenkins.READ);
+        validateYear(year);
         List<HolidayDate> holidays = getHolidaysForYear(year);
         JSONArray array = new JSONArray();
         for (HolidayDate hd : holidays) {
@@ -178,5 +204,28 @@ public class HolidayManagementLink extends ManagementLink {
         rsp.setContentType("application/json;charset=UTF-8");
         rsp.addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
         rsp.getWriter().write(json);
+    }
+
+    private void validateYear(int year) {
+        if (year < 1900 || year > 2100) {
+            throw new IllegalArgumentException("Invalid year: " + year + ", must be between 1900 and 2100");
+        }
+    }
+
+    private void validateDate(String date) {
+        if (date == null || date.isEmpty()) {
+            throw new IllegalArgumentException("Date cannot be null or empty");
+        }
+        try {
+            LocalDate.parse(date, FORMATTER);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("Invalid date format: " + date + ", expected yyyy-MM-dd");
+        }
+    }
+
+    private void validateType(String type) {
+        if (type != null && !"HOLIDAY".equals(type) && !"WORKDAY".equals(type)) {
+            throw new IllegalArgumentException("Invalid type: " + type + ", must be HOLIDAY or WORKDAY");
+        }
     }
 }

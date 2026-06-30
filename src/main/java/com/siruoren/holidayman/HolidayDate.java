@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Objects;
 
 public class HolidayDate implements Serializable, Comparable<HolidayDate> {
 
@@ -18,17 +19,17 @@ public class HolidayDate implements Serializable, Comparable<HolidayDate> {
     }
 
     public HolidayDate(@NonNull String date, @NonNull String name, @NonNull String type) {
-        this.date = date;
-        this.name = name;
-        this.type = type;
+        setDate(date);
+        setName(name);
+        setType(type);
     }
 
     public static HolidayDate holiday(@NonNull LocalDate date, @NonNull String name) {
-        return new HolidayDate(date.format(FORMATTER), name, "HOLIDAY");
+        return new HolidayDate(date.format(FORMATTER), sanitizeName(name), "HOLIDAY");
     }
 
     public static HolidayDate workday(@NonNull LocalDate date, @NonNull String name) {
-        return new HolidayDate(date.format(FORMATTER), name, "WORKDAY");
+        return new HolidayDate(date.format(FORMATTER), sanitizeName(name), "WORKDAY");
     }
 
     public String getDate() {
@@ -36,6 +37,14 @@ public class HolidayDate implements Serializable, Comparable<HolidayDate> {
     }
 
     public void setDate(String date) {
+        if (date == null || date.isEmpty()) {
+            throw new IllegalArgumentException("Date cannot be null or empty");
+        }
+        try {
+            LocalDate.parse(date, FORMATTER);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid date format: " + date + ", expected yyyy-MM-dd");
+        }
         this.date = date;
     }
 
@@ -44,7 +53,7 @@ public class HolidayDate implements Serializable, Comparable<HolidayDate> {
     }
 
     public void setName(String name) {
-        this.name = name;
+        this.name = name != null ? sanitizeName(name) : "";
     }
 
     public String getType() {
@@ -52,6 +61,9 @@ public class HolidayDate implements Serializable, Comparable<HolidayDate> {
     }
 
     public void setType(String type) {
+        if (type == null || (!"HOLIDAY".equals(type) && !"WORKDAY".equals(type))) {
+            throw new IllegalArgumentException("Invalid type: " + type + ", must be HOLIDAY or WORKDAY");
+        }
         this.type = type;
     }
 
@@ -71,6 +83,12 @@ public class HolidayDate implements Serializable, Comparable<HolidayDate> {
         return toLocalDate().getYear();
     }
 
+    private static String sanitizeName(@NonNull String name) {
+        if (name == null) return "";
+        // Remove potentially dangerous characters
+        return name.replaceAll("[<>\"'&\n\r\t]", "").trim();
+    }
+
     @Override
     public int compareTo(@NonNull HolidayDate o) {
         return this.date.compareTo(o.date);
@@ -81,11 +99,20 @@ public class HolidayDate implements Serializable, Comparable<HolidayDate> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         HolidayDate that = (HolidayDate) o;
-        return date != null ? date.equals(that.date) : that.date == null;
+        return Objects.equals(date, that.date);
     }
 
     @Override
     public int hashCode() {
-        return date != null ? date.hashCode() : 0;
+        return Objects.hash(date);
+    }
+
+    @Override
+    public String toString() {
+        return "HolidayDate{" +
+                "date='" + date + '\'' +
+                ", name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                '}';
     }
 }

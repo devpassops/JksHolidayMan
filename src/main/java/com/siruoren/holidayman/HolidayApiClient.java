@@ -12,6 +12,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -22,8 +25,16 @@ public class HolidayApiClient {
     private static final DateTimeFormatter INPUT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final int CONNECT_TIMEOUT = 10000;
     private static final int READ_TIMEOUT = 15000;
+    private static final int MAX_REQUESTS_PER_MINUTE = 10;
+    
+    // Rate limiting: track requests per minute
+    private static final ConcurrentHashMap<Long, AtomicInteger> requestCounts = new ConcurrentHashMap<>();
+    private static volatile long lastCleanupTime = System.currentTimeMillis();
 
     public List<HolidayDate> fetchHolidays(int year) throws Exception {
+        validateYear(year);
+        checkRateLimit();
+        
         String url = API_URL + year;
         LOGGER.info("Fetching holiday data from: " + url);
 
@@ -34,6 +45,7 @@ public class HolidayApiClient {
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("User-Agent", "Jenkins-HolidayManagement/1.0");
 
             int responseCode = conn.getResponseCode();
             if (responseCode != 200) {
@@ -56,12 +68,51 @@ public class HolidayApiClient {
         }
     }
 
+    private void checkRateLimit() throws Exception {
+        long currentMinute = System.currentTimeMillis() / 60000;
+        
+        // Clean up old entries periodically
+        if (System.currentTimeMillis() - lastCleanupTime > TimeUnit.MINUTES.toMillis(5)) {
+            long fiveMinutesAgo = (System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(5)) / 60000;
+            requestCounts.keySet().removeIf(key -> key < fiveMinutesAgo);
+            lastCleanupTime = System.currentTimeMillis();
+        }
+        
+        AtomicInteger count = requestCounts.computeIfAbsent(currentMinute, k -> new AtomicInteger(0));
+        int currentCount = count.incrementAndGet();
+        
+        if (currentCount > MAX_REQUESTS_PER_MINUTE) {
+            count.decrementAndGet();
+            throw new RuntimeException("Rate limit exceeded: Maximum " + MAX_REQUESTS_PER_MINUTE + 
+                " requests per minute allowed. Please try again later.");
+        }
+    }
+
+    private void validateYear(int year) {
+        if (year < 1900 || year > 2100) {
+            throw new IllegalArgumentException("Invalid year: " + year + ", must be between 1900 and 2100");
+        }
+    }
+
     private List<HolidayDate> parseApiResponse(@NonNull String json, int year) throws Exception {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("API response is empty");
+        }
+        
         List<HolidayDate> result = new ArrayList<>();
-        JSONObject root = JSONObject.fromObject(json);
+        JSONObject root;
+        
+        try {
+            root = JSONObject.fromObject(json);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Failed to parse JSON response from API", e);
+            throw new RuntimeException("Invalid JSON response from API", e);
+        }
 
         if (root.has("code") && root.getInt("code") != 0) {
-            throw new RuntimeException("API error: " + root.optString("msg", "Unknown error"));
+            String errorMsg = root.optString("msg", "Unknown error");
+            LOGGER.warning("API error for year " + year + ": " + errorMsg);
+            throw new RuntimeException("API error: " + errorMsg);
         }
 
         JSONObject holidayNode = root.optJSONObject("holiday");
@@ -73,12 +124,14 @@ public class HolidayApiClient {
         Iterator<?> keys = holidayNode.keys();
         while (keys.hasNext()) {
             String key = (String) keys.next();
+            if (key == null || key.isEmpty()) continue;
+            
             String dateStr = year + "-" + key;
             JSONObject detail = holidayNode.optJSONObject(key);
 
             try {
                 LocalDate date = LocalDate.parse(dateStr, INPUT_FORMAT);
-                String name = detail != null ? detail.optString("name", "") : "";
+                String name = detail != null ? sanitizeString(detail.optString("name", "")) : "";
                 boolean isHoliday = detail != null ? detail.optBoolean("holiday", true) : true;
 
                 HolidayDate hd;
@@ -95,5 +148,11 @@ public class HolidayApiClient {
 
         LOGGER.info("Parsed " + result.size() + " holiday entries for year " + year);
         return result;
+    }
+
+    private String sanitizeString(@NonNull String input) {
+        if (input == null) return "";
+        // Remove potentially dangerous characters
+        return input.replaceAll("[<>\"'&]", "");
     }
 }

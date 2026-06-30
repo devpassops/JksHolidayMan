@@ -1,6 +1,7 @@
 #holiday-data-container .year-tab {
     cursor: pointer;
     transition: background-color 0.2s;
+    background-color: #e8e8e8;
 }
 
 #holiday-data-container .year-tab:hover {
