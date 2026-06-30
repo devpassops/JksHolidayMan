@@ -3,10 +3,15 @@ package com.siruoren.holidayman;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import jenkins.model.Jenkins;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -147,5 +152,98 @@ public class HolidayService {
     public boolean removeYear(int year) {
         HolidayStore store = HolidayStore.getInstance();
         return store.removeYear(year);
+    }
+
+    /**
+     * Import holiday data from a JSON string (offline import).
+     * JSON format: [{"date":"2026-01-01","name":"元旦","type":"HOLIDAY"}, ...]
+     * or {"2026": [{"date":"2026-01-01","name":"元旦","type":"HOLIDAY"}, ...]}
+     */
+    public int importFromJson(@NonNull String json) throws Exception {
+        String trimmed = json.trim();
+        List<HolidayDate> allHolidays = new ArrayList<>();
+
+        if (trimmed.startsWith("[")) {
+            JSONArray array = JSONArray.fromObject(trimmed);
+            for (int i = 0; i < array.size(); i++) {
+                JSONObject obj = array.getJSONObject(i);
+                allHolidays.add(jsonToHolidayDate(obj));
+            }
+        } else if (trimmed.startsWith("{")) {
+            JSONObject root = JSONObject.fromObject(trimmed);
+            Iterator<?> keys = root.keys();
+            while (keys.hasNext()) {
+                String yearKey = (String) keys.next();
+                JSONArray array = root.optJSONArray(yearKey);
+                if (array != null) {
+                    for (int i = 0; i < array.size(); i++) {
+                        JSONObject obj = array.getJSONObject(i);
+                        allHolidays.add(jsonToHolidayDate(obj));
+                    }
+                }
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid JSON format: must start with '[' or '{'");
+        }
+
+        if (allHolidays.isEmpty()) {
+            LOGGER.warning("No holiday entries found in imported JSON");
+            return 0;
+        }
+
+        HolidayStore store = HolidayStore.getInstance();
+        for (HolidayDate hd : allHolidays) {
+            store.addHoliday(hd);
+        }
+        LOGGER.info("Imported " + allHolidays.size() + " holiday entries from JSON file");
+        return allHolidays.size();
+    }
+
+    /**
+     * Export holiday data for a specific year as JSON string.
+     */
+    public String exportYearToJson(int year) {
+        List<HolidayDate> holidays = getHolidaysForYear(year);
+        JSONArray array = new JSONArray();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        for (HolidayDate hd : holidays) {
+            JSONObject obj = new JSONObject();
+            obj.put("date", hd.getDate());
+            obj.put("name", hd.getName());
+            obj.put("type", hd.getType());
+            array.add(obj);
+        }
+        return array.toString(2);
+    }
+
+    /**
+     * Export all holiday data as JSON string.
+     */
+    public String exportAllToJson() {
+        List<Integer> years = getAvailableYears();
+        JSONObject root = new JSONObject();
+        for (int year : years) {
+            List<HolidayDate> holidays = getHolidaysForYear(year);
+            JSONArray array = new JSONArray();
+            for (HolidayDate hd : holidays) {
+                JSONObject obj = new JSONObject();
+                obj.put("date", hd.getDate());
+                obj.put("name", hd.getName());
+                obj.put("type", hd.getType());
+                array.add(obj);
+            }
+            root.put(String.valueOf(year), array);
+        }
+        return root.toString(2);
+    }
+
+    private HolidayDate jsonToHolidayDate(JSONObject obj) {
+        String date = obj.getString("date");
+        String name = obj.optString("name", "");
+        String type = obj.optString("type", "HOLIDAY");
+        if (!"HOLIDAY".equals(type) && !"WORKDAY".equals(type)) {
+            type = "HOLIDAY";
+        }
+        return new HolidayDate(date, name, type);
     }
 }

@@ -4,6 +4,24 @@
         <f:textbox/>
     </f:entry>
     <f:entry title="${%holidayPolicy}" field="holidayPolicy" description="${%holidayPolicyDesc}">
-        <f:enum field="holidayPolicy" enumName="com.siruoren.holidayman.HolidayPolicy"/>
+        <select name="_.holidayPolicy" style="width:100%">
+            <j:choose>
+                <j:when test="${instance.holidayPolicy == 'INCLUDE_HOLIDAYS'}">
+                    <option value="EXCLUDE_HOLIDAYS">${%policyExclude}</option>
+                    <option value="INCLUDE_HOLIDAYS" selected="true">${%policyInclude}</option>
+                    <option value="ONLY_HOLIDAYS">${%policyOnly}</option>
+                </j:when>
+                <j:when test="${instance.holidayPolicy == 'ONLY_HOLIDAYS'}">
+                    <option value="EXCLUDE_HOLIDAYS">${%policyExclude}</option>
+                    <option value="INCLUDE_HOLIDAYS">${%policyInclude}</option>
+                    <option value="ONLY_HOLIDAYS" selected="true">${%policyOnly}</option>
+                </j:when>
+                <j:otherwise>
+                    <option value="EXCLUDE_HOLIDAYS" selected="true">${%policyExclude}</option>
+                    <option value="INCLUDE_HOLIDAYS">${%policyInclude}</option>
+                    <option value="ONLY_HOLIDAYS">${%policyOnly}</option>
+                </j:otherwise>
+            </j:choose>
+        </select>
     </f:entry>
 </j:jelly>

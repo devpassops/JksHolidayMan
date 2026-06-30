@@ -6,9 +6,9 @@
             <h1>${%pageTitle}</h1>
             <p>${%pageDescription}</p>
 
-            <!-- Import Section -->
-            <f:section title="${%importSection}">
-                <f:form method="post" action="importYear" name="importForm">
+            <!-- Online Import Section -->
+            <f:section title="${%importOnlineSection}">
+                <f:form method="post" action="importYear" name="importOnlineForm">
                     <f:entry title="${%importYear}" description="${%importYearDesc}">
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input type="number" name="year" value="${it.currentYear}" min="2020" max="2099"
@@ -17,6 +17,38 @@
                         </div>
                     </f:entry>
                 </f:form>
+            </f:section>
+
+            <!-- Offline Import Section -->
+            <f:section title="${%importOfflineSection}">
+                <f:entry description="${%importFileDesc}">
+                    <form method="post" action="importFile" enctype="multipart/form-data"
+                          style="display:flex;align-items:center;gap:8px;">
+                        <input type="file" name="file" accept=".json" style="max-width:400px;"/>
+                        <input type="submit" value="${%importFileButton}"
+                               class="jenkins-button jenkins-button--primary"
+                               style="padding:4px 12px;"/>
+                    </form>
+                </f:entry>
+            </f:section>
+
+            <!-- Export Section -->
+            <f:section title="${%exportSection}">
+                <f:entry description="${%exportYearDesc}">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <input type="number" id="exportYear" value="${it.currentYear}" min="2020" max="2099"
+                               style="width:100px;padding:4px 8px;"/>
+                        <button type="button" onclick="window.location.href='exportYear?year='+document.getElementById('exportYear').value"
+                                class="jenkins-button jenkins-button--primary" style="padding:4px 12px;">
+                            ${%exportYearButton}
+                        </button>
+                    </div>
+                </f:entry>
+                <f:entry description="${%exportAllDesc}">
+                    <a href="exportAll" class="jenkins-button" style="padding:4px 12px;text-decoration:none;display:inline-block;">
+                        ${%exportAllButton}
+                    </a>
+                </f:entry>
             </f:section>
 
             <!-- Add Holiday Section -->

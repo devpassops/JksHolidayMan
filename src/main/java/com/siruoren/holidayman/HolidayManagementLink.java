@@ -7,11 +7,16 @@ import jenkins.model.Jenkins;
 import org.kohsuke.stapler.HttpRedirect;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerResponse2;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.verb.POST;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -57,6 +62,9 @@ public class HolidayManagementLink extends ManagementLink {
         return LocalDate.now().getYear();
     }
 
+    /**
+     * Online import: import from API by year.
+     */
     @POST
     public HttpResponse doImportYear(@QueryParameter int year) throws Exception {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
@@ -67,6 +75,44 @@ public class HolidayManagementLink extends ManagementLink {
             LOGGER.log(Level.SEVERE, "Failed to import holidays for year " + year, e);
             throw e;
         }
+    }
+
+    /**
+     * Offline import: import from uploaded JSON file.
+     */
+    @POST
+    public HttpResponse doImportFile(StaplerRequest req) throws Exception {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        try {
+            String json = readFileFromRequest(req);
+            if (json == null || json.isEmpty()) {
+                throw new IllegalArgumentException("No file content received");
+            }
+            int count = HolidayService.getInstance().importFromJson(json);
+            LOGGER.info("Imported " + count + " entries from uploaded file");
+            return new HttpRedirect("index");
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Failed to import holidays from file", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Export: download holiday data for a specific year as JSON.
+     */
+    public void doExportYear(@QueryParameter int year, StaplerResponse rsp) throws IOException {
+        Jenkins.get().checkPermission(Jenkins.READ);
+        String json = HolidayService.getInstance().exportYearToJson(year);
+        writeJsonDownload(rsp, json, "holidays-" + year + ".json");
+    }
+
+    /**
+     * Export: download all holiday data as JSON.
+     */
+    public void doExportAll(StaplerResponse rsp) throws IOException {
+        Jenkins.get().checkPermission(Jenkins.READ);
+        String json = HolidayService.getInstance().exportAllToJson();
+        writeJsonDownload(rsp, json, "holidays-all.json");
     }
 
     @POST
@@ -116,9 +162,27 @@ public class HolidayManagementLink extends ManagementLink {
     /**
      * AJAX endpoint for fetching holiday data as JSON.
      */
-    public void doHolidaysJson(@QueryParameter int year, StaplerResponse2 rsp) throws Exception {
+    public void doHolidaysJson(@QueryParameter int year, StaplerResponse rsp) throws Exception {
         Jenkins.get().checkPermission(Jenkins.READ);
         rsp.setContentType("application/json;charset=UTF-8");
         rsp.getWriter().write(getHolidaysJson(year));
+    }
+
+    private String readFileFromRequest(StaplerRequest req) throws IOException {
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(req.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line);
+            }
+        }
+        return content.toString();
+    }
+
+    private void writeJsonDownload(StaplerResponse rsp, String json, String filename) throws IOException {
+        rsp.setContentType("application/json;charset=UTF-8");
+        rsp.addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        rsp.getWriter().write(json);
     }
 }

@@ -67,16 +67,34 @@
     }
 
     function deleteHoliday(date, year) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = getRootUrl() + 'manage/holiday-management/deleteHoliday';
-        var dateInput = document.createElement('input');
-        dateInput.type = 'hidden';
-        dateInput.name = 'date';
-        dateInput.value = date;
-        form.appendChild(dateInput);
-        document.body.appendChild(form);
-        form.submit();
+        // Fetch crumb token for CSRF protection
+        fetch(getRootUrl() + 'crumbIssuer/api/json')
+            .then(function (response) { return response.json(); })
+            .then(function (crumbData) {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = getRootUrl() + 'manage/holiday-management/deleteHoliday';
+                
+                // Add crumb token
+                var crumbInput = document.createElement('input');
+                crumbInput.type = 'hidden';
+                crumbInput.name = crumbData.crumbRequestField;
+                crumbInput.value = crumbData.crumb;
+                form.appendChild(crumbInput);
+                
+                // Add date parameter
+                var dateInput = document.createElement('input');
+                dateInput.type = 'hidden';
+                dateInput.name = 'date';
+                dateInput.value = date;
+                form.appendChild(dateInput);
+                
+                document.body.appendChild(form);
+                form.submit();
+            })
+            .catch(function (err) {
+                alert('Failed to get security token: ' + err.message);
+            });
     }
 
     function initYearTabs() {

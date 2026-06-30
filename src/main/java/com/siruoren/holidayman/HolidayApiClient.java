@@ -1,8 +1,7 @@
 package com.siruoren.holidayman;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import net.sf.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -13,7 +12,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -60,29 +58,28 @@ public class HolidayApiClient {
 
     private List<HolidayDate> parseApiResponse(@NonNull String json, int year) throws Exception {
         List<HolidayDate> result = new ArrayList<>();
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode root = mapper.readTree(json);
+        JSONObject root = JSONObject.fromObject(json);
 
-        if (root.has("code") && root.get("code").asInt() != 0) {
-            throw new RuntimeException("API error: " + root.path("msg").asText("Unknown error"));
+        if (root.has("code") && root.getInt("code") != 0) {
+            throw new RuntimeException("API error: " + root.optString("msg", "Unknown error"));
         }
 
-        JsonNode holidayNode = root.get("holiday");
-        if (holidayNode == null || !holidayNode.isObject()) {
+        JSONObject holidayNode = root.optJSONObject("holiday");
+        if (holidayNode == null || holidayNode.isEmpty()) {
             LOGGER.warning("No holiday data found in API response for year " + year);
             return result;
         }
 
-        Iterator<Map.Entry<String, JsonNode>> fields = holidayNode.fields();
-        while (fields.hasNext()) {
-            Map.Entry<String, JsonNode> entry = fields.next();
-            String dateStr = year + "-" + entry.getKey();
-            JsonNode detail = entry.getValue();
+        Iterator<?> keys = holidayNode.keys();
+        while (keys.hasNext()) {
+            String key = (String) keys.next();
+            String dateStr = year + "-" + key;
+            JSONObject detail = holidayNode.optJSONObject(key);
 
             try {
                 LocalDate date = LocalDate.parse(dateStr, INPUT_FORMAT);
-                String name = detail.path("name").asText("");
-                boolean isHoliday = detail.path("holiday").asBoolean(true);
+                String name = detail != null ? detail.optString("name", "") : "";
+                boolean isHoliday = detail != null ? detail.optBoolean("holiday", true) : true;
 
                 HolidayDate hd;
                 if (isHoliday) {
