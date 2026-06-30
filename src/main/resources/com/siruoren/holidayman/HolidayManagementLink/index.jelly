@@ -6,29 +6,31 @@
             <h1>${%pageTitle}</h1>
             <p>${%pageDescription}</p>
 
+            <div id="holiday-mgmt-root" data-rooturl="${rootURL}/"></div>
+
             <!-- Online Import Section -->
             <f:section title="${%importOnlineSection}">
-                <f:form method="post" action="importYear" name="importOnlineForm">
+                <form method="post" action="importYear" name="importOnlineForm">
                     <f:entry title="${%importYear}" description="${%importYearDesc}">
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input type="number" name="year" value="${it.currentYear}" min="2020" max="2099"
                                    style="width:100px;padding:4px 8px;"/>
-                            <f:submit value="${%importButton}"/>
+                            <input type="submit" value="${%importButton}" class="jenkins-button jenkins-button--primary" style="padding:4px 12px;"/>
                         </div>
                     </f:entry>
-                </f:form>
+                </form>
             </f:section>
 
             <!-- Offline Import Section -->
             <f:section title="${%importOfflineSection}">
-                <f:form method="post" action="importFile" enctype="multipart/form-data">
+                <form method="post" action="importFile" enctype="multipart/form-data" name="importFileForm">
                     <f:entry description="${%importFileDesc}">
                         <div style="display:flex;align-items:center;gap:8px;">
                             <input type="file" name="file" accept=".json" style="max-width:400px;"/>
-                            <f:submit value="${%importFileButton}"/>
+                            <input type="submit" value="${%importFileButton}" class="jenkins-button jenkins-button--primary" style="padding:4px 12px;"/>
                         </div>
                     </f:entry>
-                </f:form>
+                </form>
             </f:section>
 
             <!-- Export Section -->
@@ -52,9 +54,9 @@
 
             <!-- Add Holiday Section -->
             <f:section title="${%addSection}">
-                <f:form method="post" action="addHoliday" name="addForm">
+                <form method="post" action="addHoliday" name="addForm">
                     <f:entry title="${%dateField}">
-                        <input type="date" name="date" style="padding:4px 8px;"/>
+                        <input type="text" name="date" placeholder="2026-01-01" pattern="\d{4}-\d{2}-\d{2}" style="width:150px;padding:4px 8px;"/>
                     </f:entry>
                     <f:entry title="${%nameField}">
                         <input type="text" name="name" style="width:200px;padding:4px 8px;"/>
@@ -66,9 +68,9 @@
                         </select>
                     </f:entry>
                     <f:entry>
-                        <f:submit value="${%addButton}"/>
+                        <input type="submit" value="${%addButton}" class="jenkins-button jenkins-button--primary" style="padding:4px 12px;"/>
                     </f:entry>
-                </f:form>
+                </form>
             </f:section>
 
             <!-- Holiday Data Section -->

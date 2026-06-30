@@ -164,35 +164,47 @@ public class HolidayService {
             throw new IllegalArgumentException("JSON content is empty");
         }
         
-        String trimmed = json.trim();
+        // Strip BOM if present (EF BB BF for UTF-8 BOM)
+        String cleaned = json;
+        if (cleaned.charAt(0) == '\uFEFF') {
+            cleaned = cleaned.substring(1);
+        }
+        
+        String trimmed = cleaned.trim();
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("JSON content contains only whitespace");
         }
         
         List<HolidayDate> allHolidays = new ArrayList<>();
 
-        if (trimmed.startsWith("[")) {
-            JSONArray array = JSONArray.fromObject(trimmed);
-            for (int i = 0; i < array.size(); i++) {
-                JSONObject obj = array.getJSONObject(i);
-                allHolidays.add(jsonToHolidayDate(obj));
-            }
-        } else if (trimmed.startsWith("{")) {
-            JSONObject root = JSONObject.fromObject(trimmed);
-            Iterator<?> keys = root.keys();
-            while (keys.hasNext()) {
-                String yearKey = (String) keys.next();
-                JSONArray array = root.optJSONArray(yearKey);
-                if (array != null) {
-                    for (int i = 0; i < array.size(); i++) {
-                        JSONObject obj = array.getJSONObject(i);
-                        allHolidays.add(jsonToHolidayDate(obj));
+        try {
+            if (trimmed.startsWith("[")) {
+                JSONArray array = JSONArray.fromObject(trimmed);
+                for (int i = 0; i < array.size(); i++) {
+                    JSONObject obj = array.getJSONObject(i);
+                    allHolidays.add(jsonToHolidayDate(obj));
+                }
+            } else if (trimmed.startsWith("{")) {
+                JSONObject root = JSONObject.fromObject(trimmed);
+                Iterator<?> keys = root.keys();
+                while (keys.hasNext()) {
+                    String yearKey = (String) keys.next();
+                    JSONArray array = root.optJSONArray(yearKey);
+                    if (array != null) {
+                        for (int i = 0; i < array.size(); i++) {
+                            JSONObject obj = array.getJSONObject(i);
+                            allHolidays.add(jsonToHolidayDate(obj));
+                        }
                     }
                 }
+            } else {
+                throw new IllegalArgumentException("Invalid JSON format: must start with '[' or '{'. First 20 chars: '" + 
+                    (trimmed.length() > 20 ? trimmed.substring(0, 20) + "..." : trimmed) + "'");
             }
-        } else {
-            throw new IllegalArgumentException("Invalid JSON format: must start with '[' or '{'. First character: '" + 
-                (trimmed.length() > 0 ? trimmed.substring(0, 1) : "empty") + "'");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse JSON: " + e.getMessage(), e);
         }
 
         if (allHolidays.isEmpty()) {

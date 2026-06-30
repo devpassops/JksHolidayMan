@@ -1,15 +1,67 @@
 (function() {
+    var rootUrl = '';
+
+    function getRootUrl() {
+        if (rootUrl) return rootUrl;
+        var root = document.getElementById('holiday-mgmt-root');
+        if (root) {
+            rootUrl = root.getAttribute('data-rooturl') || '';
+        }
+        if (!rootUrl) {
+            var container = document.getElementById('holiday-data-container');
+            if (container) {
+                rootUrl = container.getAttribute('data-rooturl') || '';
+            }
+        }
+        return rootUrl;
+    }
+
+    function getCrumb() {
+        var url = getRootUrl() + 'crumbIssuer/api/json';
+        return fetch(url, { credentials: 'same-origin' })
+            .then(function(response) {
+                if (!response.ok) throw new Error('Failed to fetch crumb: ' + response.status);
+                return response.json();
+            });
+    }
+
+    function postWithCrumb(url, params) {
+        return getCrumb().then(function(crumbData) {
+            var formData = new FormData();
+            formData.append(crumbData.crumbRequestField, crumbData.crumb);
+            for (var key in params) {
+                if (params.hasOwnProperty(key)) {
+                    formData.append(key, params[key]);
+                }
+            }
+            return fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            });
+        }).then(function(response) {
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                response.text().then(function(text) {
+                    alert('Operation failed: ' + response.status + ' - ' + text.substring(0, 200));
+                });
+            }
+        }).catch(function(err) {
+            alert('Error: ' + err.message);
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         var container = document.getElementById('holiday-data-container');
         if (!container) return;
 
-        var rootUrl = container.getAttribute('data-rooturl');
         var tabs = container.querySelectorAll('.year-tab');
         var tableContainer = document.getElementById('holiday-table-container');
 
         if (tabs.length === 0) return;
 
-        // Find and activate current year tab, or first tab if current year not found
+        // Find and activate current year tab, or first tab
         var currentYear = new Date().getFullYear();
         var currentYearTab = null;
         tabs.forEach(function(tab) {
@@ -33,7 +85,10 @@
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 var year = btn.getAttribute('data-year');
-                deleteYear(year);
+                if (confirm('Delete all holiday data for year ' + year + '? This action cannot be undone.')) {
+                    var url = getRootUrl() + 'manage/holiday-management/deleteYear';
+                    postWithCrumb(url, { year: year });
+                }
             });
         });
 
@@ -51,9 +106,12 @@
         }
 
         function loadHolidayData(year) {
-            var url = rootUrl + 'manage/holiday-management/holidaysJson?year=' + year;
-            fetch(url)
-                .then(function(response) { return response.json(); })
+            var url = getRootUrl() + 'manage/holiday-management/holidaysJson?year=' + year;
+            fetch(url, { credentials: 'same-origin' })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
                 .then(function(data) { renderTable(data, year); })
                 .catch(function(err) {
                     tableContainer.innerHTML = '<p style="color:red;">Failed to load data: ' + err.message + '</p>';
@@ -76,11 +134,22 @@
                 html += '<td>' + escapeHtml(item.date) + '</td>';
                 html += '<td>' + escapeHtml(item.name) + '</td>';
                 html += '<td><span class="' + typeClass + '">' + typeLabel + '</span></td>';
-                html += '<td><button class="btn-delete" onclick="deleteHoliday(\'' + escapeHtml(item.date) + '\')">Delete</button></td>';
+                html += '<td><button class="btn-delete" data-date="' + escapeHtml(item.date) + '">Delete</button></td>';
                 html += '</tr>';
             });
             html += '</tbody></table>';
             tableContainer.innerHTML = html;
+
+            // Add click handlers for delete buttons
+            tableContainer.querySelectorAll('.btn-delete').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var date = btn.getAttribute('data-date');
+                    if (confirm('Delete holiday entry for ' + date + '?')) {
+                        var url = getRootUrl() + 'manage/holiday-management/deleteHoliday';
+                        postWithCrumb(url, { date: date });
+                    }
+                });
+            });
         }
 
         function escapeHtml(str) {
@@ -88,76 +157,4 @@
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
     });
-
-    window.deleteHoliday = function(date) {
-        if (!confirm('Delete holiday entry for ' + date + '?')) return;
-        
-        var container = document.getElementById('holiday-data-container');
-        var rootUrl = container.getAttribute('data-rooturl');
-        
-        // Fetch crumb token for CSRF protection
-        fetch(rootUrl + 'crumbIssuer/api/json')
-            .then(function(response) { return response.json(); })
-            .then(function(crumbData) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = rootUrl + 'manage/holiday-management/deleteHoliday';
-                
-                // Add crumb token
-                var crumbInput = document.createElement('input');
-                crumbInput.type = 'hidden';
-                crumbInput.name = crumbData.crumbRequestField;
-                crumbInput.value = crumbData.crumb;
-                form.appendChild(crumbInput);
-                
-                // Add date parameter
-                var dateInput = document.createElement('input');
-                dateInput.type = 'hidden';
-                dateInput.name = 'date';
-                dateInput.value = date;
-                form.appendChild(dateInput);
-                
-                document.body.appendChild(form);
-                form.submit();
-            })
-            .catch(function(err) {
-                alert('Failed to get security token: ' + err.message);
-            });
-    };
-
-    window.deleteYear = function(year) {
-        if (!confirm('Delete all holiday data for year ' + year + '? This action cannot be undone.')) return;
-        
-        var container = document.getElementById('holiday-data-container');
-        var rootUrl = container.getAttribute('data-rooturl');
-        
-        // Fetch crumb token for CSRF protection
-        fetch(rootUrl + 'crumbIssuer/api/json')
-            .then(function(response) { return response.json(); })
-            .then(function(crumbData) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = rootUrl + 'manage/holiday-management/deleteYear';
-                
-                // Add crumb token
-                var crumbInput = document.createElement('input');
-                crumbInput.type = 'hidden';
-                crumbInput.name = crumbData.crumbRequestField;
-                crumbInput.value = crumbData.crumb;
-                form.appendChild(crumbInput);
-                
-                // Add year parameter
-                var yearInput = document.createElement('input');
-                yearInput.type = 'hidden';
-                yearInput.name = 'year';
-                yearInput.value = year;
-                form.appendChild(yearInput);
-                
-                document.body.appendChild(form);
-                form.submit();
-            })
-            .catch(function(err) {
-                alert('Failed to get security token: ' + err.message);
-            });
-    };
 })();

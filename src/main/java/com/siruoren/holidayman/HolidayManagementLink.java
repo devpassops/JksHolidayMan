@@ -109,25 +109,36 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
                 throw new IllegalArgumentException("No file uploaded or file is empty");
             }
             
-            // Validate file size (max 1MB)
-            if (fileItem.getSize() > 1024 * 1024) {
-                throw new IllegalArgumentException("File too large. Maximum size is 1MB");
-            }
-            
-            // Validate file extension
-            String fileName = fileItem.getName().toLowerCase();
-            if (!fileName.endsWith(".json")) {
-                throw new IllegalArgumentException("Only JSON files are allowed");
+            // Validate file size (max 2MB)
+            if (fileItem.getSize() > 2 * 1024 * 1024) {
+                throw new IllegalArgumentException("File too large. Maximum size is 2MB");
             }
             
             String json = new String(fileItem.get(), StandardCharsets.UTF_8);
+            
+            // Strip BOM if present
+            if (json.length() > 0 && json.charAt(0) == '\uFEFF') {
+                json = json.substring(1);
+            }
+            
+            // Strip any non-printable characters at the start
+            json = json.trim();
+            
+            if (json.isEmpty()) {
+                throw new IllegalArgumentException("File content is empty after trimming");
+            }
+            
             LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " uploaded file: " + 
-                fileItem.getName() + ", size: " + json.length() + " chars");
+                fileItem.getName() + ", size: " + json.length() + " chars, first 50: " + 
+                json.substring(0, Math.min(50, json.length())));
             
             int count = HolidayService.getInstance().importFromJson(json);
             LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " imported " + 
                 count + " entries from uploaded file");
             return new HttpRedirect("index");
+        } catch (IllegalArgumentException e) {
+            LOGGER.log(Level.WARNING, "Invalid import file: " + e.getMessage());
+            throw e;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to import holidays from file", e);
             throw e;
@@ -156,14 +167,22 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
     }
 
     @POST
-    public HttpResponse doAddHoliday(
-            @QueryParameter String date,
-            @QueryParameter String name,
-            @QueryParameter String type) {
+    public HttpResponse doAddHoliday(StaplerRequest req) {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        String date = req.getParameter("date");
+        String name = req.getParameter("name");
+        String type = req.getParameter("type");
+        if (date == null || date.trim().isEmpty()) {
+            throw new IllegalArgumentException("Date is required");
+        }
+        date = date.trim();
         validateDate(date);
+        if (type == null || type.trim().isEmpty()) {
+            type = "HOLIDAY";
+        }
+        type = type.trim();
         validateType(type);
-        HolidayDate hd = new HolidayDate(date, name != null ? name : "", type != null ? type : "HOLIDAY");
+        HolidayDate hd = new HolidayDate(date, name != null ? name.trim() : "", type);
         HolidayService.getInstance().addHoliday(hd);
         LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " added holiday: " + date);
         return new HttpRedirect("index");
@@ -177,7 +196,7 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
         if (removed) {
             LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted holiday: " + date);
         }
-        return new HttpRedirect("index");
+        return new HttpRedirect(".");
     }
 
     @POST
@@ -188,7 +207,7 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
         if (removed) {
             LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted all holidays for year " + year);
         }
-        return new HttpRedirect("index");
+        return new HttpRedirect(".");
     }
 
     public String getHolidaysJson(int year) {

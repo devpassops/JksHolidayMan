@@ -3,6 +3,13 @@
     <f:entry title="${%schedule}" field="spec" description="${%scheduleDesc}">
         <f:textbox/>
     </f:entry>
+    <j:if test="${descriptor.currentYearMissing}">
+        <f:entry>
+            <div style="background:#fff3cd;border:1px solid #ffc107;padding:8px 12px;border-radius:4px;margin-bottom:8px;">
+                ${%noCurrentYearWarning}
+            </div>
+        </f:entry>
+    </j:if>
     <f:entry title="${%holidayPolicy}" field="holidayPolicy" description="${%holidayPolicyDesc}">
         <select name="_.holidayPolicy" style="width:100%">
             <j:choose>

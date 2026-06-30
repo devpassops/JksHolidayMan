@@ -49,6 +49,14 @@ public class HolidayTimerTrigger extends TimerTrigger {
         HolidayService service = HolidayService.getInstance();
         HolidayPolicy policy = getHolidayPolicy();
 
+        // If no holiday data for current year, fall back to normal timer behavior
+        int currentYear = today.getYear();
+        if (!service.getAvailableYears().contains(currentYear)) {
+            LOGGER.warning("No holiday data for year " + currentYear + " - falling back to normal timer for '" + j.getFullName() + "'");
+            super.run();
+            return;
+        }
+
         if (!service.shouldRun(today, policy)) {
             String holidayName = service.getHolidayName(today);
             String reason = holidayName != null
@@ -82,6 +90,11 @@ public class HolidayTimerTrigger extends TimerTrigger {
 
         public HolidayPolicy getDefaultPolicy() {
             return HolidayPolicy.EXCLUDE_HOLIDAYS;
+        }
+
+        public boolean isCurrentYearMissing() {
+            int currentYear = LocalDate.now().getYear();
+            return !HolidayService.getInstance().getAvailableYears().contains(currentYear);
         }
     }
 
