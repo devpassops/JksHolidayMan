@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+
+### Bug Fixes
+
+- 修复删除节假日数据返回 HTML 而非 JSON 导致解析报错 - 所有 POST 端点支持 AJAX JSON 响应
+- 修复 HolidayEnvironmentContributor 注释与实际环境变量名不一致
+
 ## 1.0.0
 
 ### Features
