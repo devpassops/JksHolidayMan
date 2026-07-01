@@ -1,0 +1,34 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+    <f:entry title="${%schedule}" field="spec" description="${%scheduleDesc}">
+        <f:textbox/>
+    </f:entry>
+    <j:if test="${descriptor.currentYearMissing}">
+        <f:entry>
+            <div style="background:#fff3cd;border:1px solid #ffc107;padding:8px 12px;border-radius:4px;margin-bottom:8px;">
+                ${%noCurrentYearWarning}
+            </div>
+        </f:entry>
+    </j:if>
+    <f:entry title="${%holidayPolicy}" field="holidayPolicy" description="${%holidayPolicyDesc}">
+        <select name="_.holidayPolicy" style="width:100%">
+            <j:choose>
+                <j:when test="${instance.holidayPolicy == 'INCLUDE_HOLIDAYS'}">
+                    <option value="EXCLUDE_HOLIDAYS">${%policyExclude}</option>
+                    <option value="INCLUDE_HOLIDAYS" selected="true">${%policyInclude}</option>
+                    <option value="ONLY_HOLIDAYS">${%policyOnly}</option>
+                </j:when>
+                <j:when test="${instance.holidayPolicy == 'ONLY_HOLIDAYS'}">
+                    <option value="EXCLUDE_HOLIDAYS">${%policyExclude}</option>
+                    <option value="INCLUDE_HOLIDAYS">${%policyInclude}</option>
+                    <option value="ONLY_HOLIDAYS" selected="true">${%policyOnly}</option>
+                </j:when>
+                <j:otherwise>
+                    <option value="EXCLUDE_HOLIDAYS" selected="true">${%policyExclude}</option>
+                    <option value="INCLUDE_HOLIDAYS">${%policyInclude}</option>
+                    <option value="ONLY_HOLIDAYS">${%policyOnly}</option>
+                </j:otherwise>
+            </j:choose>
+        </select>
+    </f:entry>
+</j:jelly>

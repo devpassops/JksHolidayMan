@@ -1,0 +1,104 @@
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+    <l:layout title="${%pageTitle}">
+        <l:main-panel>
+
+            <h1>${%pageTitle}</h1>
+            <p>${%pageDescription}</p>
+
+            <!-- Online Import Section -->
+            <f:section title="${%importOnlineSection}">
+                <f:entry title="${%importYear}" description="${%importYearDesc}">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="importYearInput" value="${it.currentYear}" min="2020" max="2099"
+                               style="width:100px;padding:4px 8px;"/>
+                        <button type="button" id="importYearBtn" class="jenkins-button jenkins-button--primary"
+                                style="padding:4px 12px;">${%importButton}</button>
+                    </div>
+                </f:entry>
+            </f:section>
+
+            <!-- Offline Import Section -->
+            <f:section title="${%importOfflineSection}">
+                <f:entry description="${%importFileDesc}">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="file" id="importFileInput" accept=".json" style="max-width:400px;"/>
+                        <button type="button" id="importFileBtn" class="jenkins-button jenkins-button--primary"
+                                style="padding:4px 12px;">${%importFileButton}</button>
+                    </div>
+                </f:entry>
+            </f:section>
+
+            <!-- Export Section -->
+            <f:section title="${%exportSection}">
+                <f:entry description="${%exportYearDesc}">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <input type="number" id="exportYear" value="${it.currentYear}" min="2020" max="2099"
+                               style="width:100px;padding:4px 8px;"/>
+                        <button type="button" onclick="window.location.href='exportYear?year='+document.getElementById('exportYear').value"
+                                class="jenkins-button jenkins-button--primary" style="padding:4px 12px;">
+                            ${%exportYearButton}
+                        </button>
+                    </div>
+                </f:entry>
+                <f:entry description="${%exportAllDesc}">
+                    <a href="exportAll" class="jenkins-button" style="padding:4px 12px;text-decoration:none;display:inline-block;">
+                        ${%exportAllButton}
+                    </a>
+                </f:entry>
+            </f:section>
+
+            <!-- Add Holiday Section -->
+            <f:section title="${%addSection}">
+                <f:form method="post" action="addHoliday" name="addForm">
+                    <f:entry title="${%dateField}">
+                        <input type="date" name="date" style="padding:4px 8px;"/>
+                    </f:entry>
+                    <f:entry title="${%nameField}">
+                        <input type="text" name="name" style="width:200px;padding:4px 8px;"/>
+                    </f:entry>
+                    <f:entry title="${%typeField}">
+                        <select name="type" style="padding:4px 8px;">
+                            <option value="HOLIDAY">${%typeHoliday}</option>
+                            <option value="WORKDAY">${%typeWorkday}</option>
+                        </select>
+                    </f:entry>
+                    <f:entry>
+                        <f:submit value="${%addButton}"/>
+                    </f:entry>
+                </f:form>
+            </f:section>
+
+            <!-- Holiday Data Section -->
+            <f:section title="${%dataSection}">
+                <div id="holiday-data-container" data-jenkinsroot="${rootURL}/">
+                    <j:choose>
+                        <j:when test="${it.availableYears.isEmpty()}">
+                            <p style="color:#666;">${%noData}</p>
+                        </j:when>
+                        <j:otherwise>
+                            <div id="year-tabs" style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;">
+                                <j:forEach var="year" items="${it.availableYears}">
+                                    <div style="display:flex;align-items:center;gap:4px;">
+                                        <a href="#" class="year-tab" data-year="${year}"
+                                           style="padding:6px 14px;background:#e8e8e8;border-radius:4px;text-decoration:none;color:#333;">
+                                            ${year}
+                                        </a>
+                                        <a href="#" class="delete-year-btn" data-year="${year}" title="Delete all data for ${year}"
+                                           style="padding:4px 8px;background:#ffebee;border-radius:4px;text-decoration:none;color:#d32f2f;font-size:12px;">
+                                            ×
+                                        </a>
+                                    </div>
+                                </j:forEach>
+                            </div>
+                            <div id="holiday-table-container"></div>
+                        </j:otherwise>
+                    </j:choose>
+                </div>
+            </f:section>
+
+            <link rel="stylesheet" href="${rootURL}/plugin/holiday-management/css/holiday-management.css"/>
+            <script src="${rootURL}/plugin/holiday-management/js/holiday-management.js"></script>
+        </l:main-panel>
+    </l:layout>
+</j:jelly>

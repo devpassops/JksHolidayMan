@@ -1,0 +1,270 @@
+package com.siruoren.holidayman;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import hudson.Extension;
+import jenkins.model.Jenkins;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+@Extension
+public class HolidayService {
+
+    private static final Logger LOGGER = Logger.getLogger(HolidayService.class.getName());
+
+    public static HolidayService getInstance() {
+        return Jenkins.get().getExtensionList(HolidayService.class).get(0);
+    }
+
+    /**
+     * Check if the given date is a holiday (explicitly marked as HOLIDAY).
+     */
+    public boolean isHoliday(@NonNull LocalDate date) {
+        HolidayStore store = HolidayStore.getInstance();
+        HolidayDate hd = store.getHolidayDate(date);
+        return hd != null && hd.isHoliday();
+    }
+
+    /**
+     * Check if the given date is a workday (including 调休 workdays on weekends).
+     */
+    public boolean isWorkday(@NonNull LocalDate date) {
+        HolidayStore store = HolidayStore.getInstance();
+        HolidayDate hd = store.getHolidayDate(date);
+        if (hd != null) {
+            return hd.isWorkday();
+        }
+        // Not in holiday list - check if weekend
+        DayOfWeek dow = date.getDayOfWeek();
+        return dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY;
+    }
+
+    /**
+     * Check if the given date is a regular weekend (Sat/Sun) that is NOT a 调休 workday.
+     */
+    public boolean isWeekend(@NonNull LocalDate date) {
+        HolidayStore store = HolidayStore.getInstance();
+        HolidayDate hd = store.getHolidayDate(date);
+        if (hd != null && hd.isWorkday()) {
+            return false; // 调休 workday
+        }
+        if (hd != null && hd.isHoliday()) {
+            return false; // explicit holiday, not a regular weekend
+        }
+        DayOfWeek dow = date.getDayOfWeek();
+        return dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
+    }
+
+    /**
+     * Determine if a scheduled build should run on the given date based on policy.
+     * EXCLUDE_HOLIDAYS: skip holidays and weekends (unless 调休), run on workdays
+     * INCLUDE_HOLIDAYS: run on all days
+     * ONLY_HOLIDAYS: run only on holidays (explicitly marked HOLIDAY)
+     */
+    public boolean shouldRun(@NonNull LocalDate date, @NonNull HolidayPolicy policy) {
+        if (policy == HolidayPolicy.INCLUDE_HOLIDAYS) {
+            return true;
+        }
+        if (policy == HolidayPolicy.ONLY_HOLIDAYS) {
+            return isHoliday(date);
+        }
+        // EXCLUDE_HOLIDAYS: only run on workdays
+        return isWorkday(date);
+    }
+
+    /**
+     * Get the holiday name for a date, or null if not a holiday.
+     */
+    public String getHolidayName(@NonNull LocalDate date) {
+        HolidayStore store = HolidayStore.getInstance();
+        HolidayDate hd = store.getHolidayDate(date);
+        if (hd != null && hd.isHoliday()) {
+            return hd.getName();
+        }
+        return null;
+    }
+
+    /**
+     * Get all holiday dates for a specific year.
+     */
+    public List<HolidayDate> getHolidaysForYear(int year) {
+        HolidayStore store = HolidayStore.getInstance();
+        return store.getHolidaysForYear(year);
+    }
+
+    /**
+     * Import holiday data for a specific year from the official API.
+     */
+    public int importFromApi(int year) throws Exception {
+        HolidayApiClient client = new HolidayApiClient();
+        List<HolidayDate> holidays = client.fetchHolidays(year);
+        if (holidays.isEmpty()) {
+            LOGGER.warning("No holiday data returned for year " + year);
+            return 0;
+        }
+        HolidayStore store = HolidayStore.getInstance();
+        store.saveHolidays(year, holidays);
+        LOGGER.info("Imported " + holidays.size() + " holiday entries for year " + year);
+        return holidays.size();
+    }
+
+    /**
+     * Add a single holiday entry.
+     */
+    public void addHoliday(@NonNull HolidayDate holidayDate) {
+        HolidayStore store = HolidayStore.getInstance();
+        store.addHoliday(holidayDate);
+        LOGGER.info("Added holiday: " + holidayDate.getDate() + " - " + holidayDate.getName() + " (" + holidayDate.getType() + ")");
+    }
+
+    /**
+     * Remove a holiday entry by date.
+     */
+    public boolean removeHoliday(@NonNull String date) {
+        HolidayStore store = HolidayStore.getInstance();
+        boolean removed = store.removeHoliday(date);
+        if (removed) {
+            LOGGER.info("Removed holiday entry for date: " + date);
+        }
+        return removed;
+    }
+
+    /**
+     * Get all years that have holiday data.
+     */
+    public List<Integer> getAvailableYears() {
+        HolidayStore store = HolidayStore.getInstance();
+        return store.getAvailableYears();
+    }
+
+    /**
+     * Remove all holiday data for a specific year.
+     */
+    public boolean removeYear(int year) {
+        HolidayStore store = HolidayStore.getInstance();
+        return store.removeYear(year);
+    }
+
+    /**
+     * Import holiday data from a JSON string (offline import).
+     * JSON format: [{"date":"2026-01-01","name":"元旦","type":"HOLIDAY"}, ...]
+     * or {"2026": [{"date":"2026-01-01","name":"元旦","type":"HOLIDAY"}, ...]}
+     */
+    public int importFromJson(@NonNull String json) throws Exception {
+        if (json == null || json.isEmpty()) {
+            throw new IllegalArgumentException("JSON content is empty");
+        }
+        
+        // Strip BOM if present (EF BB BF for UTF-8 BOM)
+        String cleaned = json;
+        if (cleaned.charAt(0) == '\uFEFF') {
+            cleaned = cleaned.substring(1);
+        }
+        
+        String trimmed = cleaned.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("JSON content contains only whitespace");
+        }
+        
+        List<HolidayDate> allHolidays = new ArrayList<>();
+
+        try {
+            if (trimmed.startsWith("[")) {
+                JSONArray array = JSONArray.fromObject(trimmed);
+                for (int i = 0; i < array.size(); i++) {
+                    JSONObject obj = array.getJSONObject(i);
+                    allHolidays.add(jsonToHolidayDate(obj));
+                }
+            } else if (trimmed.startsWith("{")) {
+                JSONObject root = JSONObject.fromObject(trimmed);
+                Iterator<?> keys = root.keys();
+                while (keys.hasNext()) {
+                    String yearKey = (String) keys.next();
+                    JSONArray array = root.optJSONArray(yearKey);
+                    if (array != null) {
+                        for (int i = 0; i < array.size(); i++) {
+                            JSONObject obj = array.getJSONObject(i);
+                            allHolidays.add(jsonToHolidayDate(obj));
+                        }
+                    }
+                }
+            } else {
+                throw new IllegalArgumentException("Invalid JSON format: must start with '[' or '{'. First 20 chars: '" + 
+                    (trimmed.length() > 20 ? trimmed.substring(0, 20) + "..." : trimmed) + "'");
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse JSON: " + e.getMessage(), e);
+        }
+
+        if (allHolidays.isEmpty()) {
+            LOGGER.warning("No holiday entries found in imported JSON");
+            return 0;
+        }
+
+        HolidayStore store = HolidayStore.getInstance();
+        for (HolidayDate hd : allHolidays) {
+            store.addHoliday(hd);
+        }
+        LOGGER.info("Imported " + allHolidays.size() + " holiday entries from JSON file");
+        return allHolidays.size();
+    }
+
+    /**
+     * Export holiday data for a specific year as JSON string.
+     */
+    public String exportYearToJson(int year) {
+        List<HolidayDate> holidays = getHolidaysForYear(year);
+        JSONArray array = new JSONArray();
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        for (HolidayDate hd : holidays) {
+            JSONObject obj = new JSONObject();
+            obj.put("date", hd.getDate());
+            obj.put("name", hd.getName());
+            obj.put("type", hd.getType());
+            array.add(obj);
+        }
+        return array.toString(2);
+    }
+
+    /**
+     * Export all holiday data as JSON string.
+     */
+    public String exportAllToJson() {
+        List<Integer> years = getAvailableYears();
+        JSONObject root = new JSONObject();
+        for (int year : years) {
+            List<HolidayDate> holidays = getHolidaysForYear(year);
+            JSONArray array = new JSONArray();
+            for (HolidayDate hd : holidays) {
+                JSONObject obj = new JSONObject();
+                obj.put("date", hd.getDate());
+                obj.put("name", hd.getName());
+                obj.put("type", hd.getType());
+                array.add(obj);
+            }
+            root.put(String.valueOf(year), array);
+        }
+        return root.toString(2);
+    }
+
+    private HolidayDate jsonToHolidayDate(JSONObject obj) {
+        String date = obj.getString("date");
+        String name = obj.optString("name", "");
+        String type = obj.optString("type", "HOLIDAY");
+        if (!"HOLIDAY".equals(type) && !"WORKDAY".equals(type)) {
+            type = "HOLIDAY";
+        }
+        return new HolidayDate(date, name, type);
+    }
+}

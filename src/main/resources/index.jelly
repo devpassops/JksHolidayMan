@@ -1,0 +1,4 @@
+<?jelly escape-by-default='true'?>
+<div>
+    Jenkins holiday management plugin - manage official holidays and control scheduled builds on holidays with support for workday adjustments.
+</div>
