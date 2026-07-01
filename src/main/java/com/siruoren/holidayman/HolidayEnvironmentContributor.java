@@ -35,9 +35,9 @@ public class HolidayEnvironmentContributor extends EnvironmentContributor {
 
         if (isHoliday) {
             String name = service.getHolidayName(today);
-            if (name != null) {
-                envs.put("HOLIDAY_NAME", name);
-            }
+            envs.put("HOLIDAY_NAME", name != null ? name : "");
+        } else {
+            envs.put("HOLIDAY_NAME", "");
         }
     }
 }

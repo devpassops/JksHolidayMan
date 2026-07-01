@@ -64,7 +64,7 @@ JSON 文件格式：
 
 ### 3. 在 Pipeline 中使用环境变量
 
-所有构建自动注入以下环境变量：
+所有构建自动注入以下环境变量（始终可用，非节假日时 HOLIDAY_NAME 为空字符串）：
 
 ```groovy
 // Pipeline 示例
@@ -73,13 +73,14 @@ pipeline {
     stages {
         stage('Check Holiday') {
             steps {
-                echo "Today is workday: ${env.DAY_IS_WORKDAY}"
-                echo "Today is holiday: ${env.DAY_IS_HOLIDAY}"
-                echo "Holiday name: ${env.HOLIDAY_NAME ?: 'N/A'}"
+                // 推荐使用中括号访问 env 变量，避免 "no such property" 错误
+                echo "Today is workday: ${env['DAY_IS_WORKDAY']}"
+                echo "Today is holiday: ${env['DAY_IS_HOLIDAY']}"
+                echo "Holiday name: ${env['HOLIDAY_NAME'] ?: 'N/A'}"
                 
                 // 根据节假日状态执行不同逻辑
-                if (env.DAY_IS_HOLIDAY == 'true') {
-                    echo "Skipping build on holiday: ${env.HOLIDAY_NAME}"
+                if (env['DAY_IS_HOLIDAY'] == 'true') {
+                    echo "Skipping build on holiday: ${env['HOLIDAY_NAME']}"
                 }
             }
         }

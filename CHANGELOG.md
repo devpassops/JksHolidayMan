@@ -9,6 +9,7 @@
 
 ### Bug Fixes
 
+- 修复 Pipeline 中访问 HOLIDAY_NAME 报 "no such property" 错误 - 所有环境变量始终注入（非节假日时 HOLIDAY_NAME 为空字符串）
 - 修复删除节假日数据返回 HTML 而非 JSON 导致解析报错 - 所有 POST 端点支持 AJAX JSON 响应
 - 修复 HolidayEnvironmentContributor 注释与实际环境变量名不一致
 
