@@ -6,8 +6,6 @@ import hudson.model.ManagementLink;
 import hudson.security.Permission;
 import jenkins.model.Jenkins;
 import org.apache.commons.fileupload.FileItem;
-import org.kohsuke.stapler.HttpRedirect;
-import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerProxy;
 import org.kohsuke.stapler.StaplerRequest;
@@ -71,7 +69,7 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
         return HolidayService.getInstance().getAvailableYears();
     }
 
-    public List<HolidayDate> getHolidaysForYear(int year) {
+    private List<HolidayDate> getHolidaysForYear(int year) {
         return HolidayService.getInstance().getHolidaysForYear(year);
     }
 
@@ -81,36 +79,61 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
 
     /**
      * Online import: import from API by year.
+     * Supports AJAX requests returning JSON, and traditional form submissions returning redirect.
      */
     @POST
-    public HttpResponse doImportYear(@QueryParameter int year) throws Exception {
+    public void doImportYear(StaplerRequest req, StaplerResponse rsp) throws Exception {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        String yearStr = req.getParameter("year");
+        if (yearStr == null || yearStr.isEmpty()) {
+            yearStr = String.valueOf(LocalDate.now().getYear());
+        }
+        int year = Integer.parseInt(yearStr);
         validateYear(year);
+        boolean isAjax = isAjaxRequest(req);
         try {
             int count = HolidayService.getInstance().importFromApi(year);
             LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " imported " + count + 
                 " holidays for year " + year);
-            return new HttpRedirect("index");
+            if (isAjax) {
+                writeJsonResult(rsp, true, "Successfully imported " + count + " holidays for year " + year, count);
+            } else {
+                rsp.sendRedirect2("index");
+            }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to import holidays for year " + year, e);
-            throw e;
+            if (isAjax) {
+                writeJsonResult(rsp, false, "Failed to import: " + e.getMessage(), 0);
+            } else {
+                throw e;
+            }
         }
     }
 
     /**
      * Offline import: import from uploaded JSON file.
+     * Supports AJAX requests returning JSON, and traditional form submissions returning redirect.
      */
     @POST
-    public HttpResponse doImportFile(StaplerRequest req) throws Exception {
+    public void doImportFile(StaplerRequest req, StaplerResponse rsp) throws Exception {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        boolean isAjax = isAjaxRequest(req);
         try {
             FileItem fileItem = req.getFileItem("file");
             if (fileItem == null || fileItem.getSize() == 0) {
+                if (isAjax) {
+                    writeJsonResult(rsp, false, "No file uploaded or file is empty", 0);
+                    return;
+                }
                 throw new IllegalArgumentException("No file uploaded or file is empty");
             }
             
             // Validate file size (max 2MB)
             if (fileItem.getSize() > 2 * 1024 * 1024) {
+                if (isAjax) {
+                    writeJsonResult(rsp, false, "File too large. Maximum size is 2MB", 0);
+                    return;
+                }
                 throw new IllegalArgumentException("File too large. Maximum size is 2MB");
             }
             
@@ -125,6 +148,10 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
             json = json.trim();
             
             if (json.isEmpty()) {
+                if (isAjax) {
+                    writeJsonResult(rsp, false, "File content is empty after trimming", 0);
+                    return;
+                }
                 throw new IllegalArgumentException("File content is empty after trimming");
             }
             
@@ -135,13 +162,25 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
             int count = HolidayService.getInstance().importFromJson(json);
             LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " imported " + 
                 count + " entries from uploaded file");
-            return new HttpRedirect("index");
+            if (isAjax) {
+                writeJsonResult(rsp, true, "Successfully imported " + count + " holiday entries from file", count);
+            } else {
+                rsp.sendRedirect2("index");
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.log(Level.WARNING, "Invalid import file: " + e.getMessage());
-            throw e;
+            if (isAjax) {
+                writeJsonResult(rsp, false, e.getMessage(), 0);
+            } else {
+                throw e;
+            }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to import holidays from file", e);
-            throw e;
+            if (isAjax) {
+                writeJsonResult(rsp, false, "Failed to import: " + e.getMessage(), 0);
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -167,50 +206,96 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
     }
 
     @POST
-    public HttpResponse doAddHoliday(StaplerRequest req) {
+    public void doAddHoliday(StaplerRequest req, StaplerResponse rsp) throws IOException {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        boolean isAjax = isAjaxRequest(req);
+        try {
+            String date = req.getParameter("date");
+            String name = req.getParameter("name");
+            String type = req.getParameter("type");
+            if (date == null || date.trim().isEmpty()) {
+                if (isAjax) {
+                    writeJsonResult(rsp, false, "Date is required", 0);
+                    return;
+                }
+                throw new IllegalArgumentException("Date is required");
+            }
+            date = date.trim();
+            validateDate(date);
+            if (type == null || type.trim().isEmpty()) {
+                type = "HOLIDAY";
+            }
+            type = type.trim();
+            validateType(type);
+            HolidayDate hd = new HolidayDate(date, name != null ? name.trim() : "", type);
+            HolidayService.getInstance().addHoliday(hd);
+            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " added holiday: " + date);
+            if (isAjax) {
+                writeJsonResult(rsp, true, "Successfully added holiday: " + date, 1);
+            } else {
+                rsp.sendRedirect2("index");
+            }
+        } catch (Exception e) {
+            if (isAjax) {
+                writeJsonResult(rsp, false, "Failed to add: " + e.getMessage(), 0);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    @POST
+    public void doDeleteHoliday(StaplerRequest req, StaplerResponse rsp) throws IOException {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        boolean isAjax = isAjaxRequest(req);
         String date = req.getParameter("date");
-        String name = req.getParameter("name");
-        String type = req.getParameter("type");
-        if (date == null || date.trim().isEmpty()) {
-            throw new IllegalArgumentException("Date is required");
+        try {
+            validateDate(date);
+            boolean removed = HolidayService.getInstance().removeHoliday(date);
+            if (removed) {
+                LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted holiday: " + date);
+            }
+            if (isAjax) {
+                writeJsonResult(rsp, true, removed ? "Successfully deleted holiday: " + date : "Holiday not found: " + date, removed ? 1 : 0);
+            } else {
+                rsp.sendRedirect2(".");
+            }
+        } catch (Exception e) {
+            if (isAjax) {
+                writeJsonResult(rsp, false, "Failed to delete: " + e.getMessage(), 0);
+            } else {
+                throw e;
+            }
         }
-        date = date.trim();
-        validateDate(date);
-        if (type == null || type.trim().isEmpty()) {
-            type = "HOLIDAY";
-        }
-        type = type.trim();
-        validateType(type);
-        HolidayDate hd = new HolidayDate(date, name != null ? name.trim() : "", type);
-        HolidayService.getInstance().addHoliday(hd);
-        LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " added holiday: " + date);
-        return new HttpRedirect("index");
     }
 
     @POST
-    public HttpResponse doDeleteHoliday(@QueryParameter String date) {
+    public void doDeleteYear(StaplerRequest req, StaplerResponse rsp) throws IOException {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-        validateDate(date);
-        boolean removed = HolidayService.getInstance().removeHoliday(date);
-        if (removed) {
-            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted holiday: " + date);
+        boolean isAjax = isAjaxRequest(req);
+        String yearStr = req.getParameter("year");
+        try {
+            int year = Integer.parseInt(yearStr);
+            validateYear(year);
+            boolean removed = HolidayService.getInstance().removeYear(year);
+            if (removed) {
+                LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted all holidays for year " + year);
+            }
+            if (isAjax) {
+                writeJsonResult(rsp, true, removed ? "Successfully deleted all holidays for year " + year : "No data found for year " + year, removed ? 1 : 0);
+            } else {
+                rsp.sendRedirect2(".");
+            }
+        } catch (Exception e) {
+            if (isAjax) {
+                writeJsonResult(rsp, false, "Failed to delete: " + e.getMessage(), 0);
+            } else {
+                throw e;
+            }
         }
-        return new HttpRedirect(".");
     }
 
-    @POST
-    public HttpResponse doDeleteYear(@QueryParameter int year) {
-        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-        validateYear(year);
-        boolean removed = HolidayService.getInstance().removeYear(year);
-        if (removed) {
-            LOGGER.info("User " + Jenkins.get().getAuthentication().getName() + " deleted all holidays for year " + year);
-        }
-        return new HttpRedirect(".");
-    }
-
-    public String getHolidaysJson(int year) {
+    private String getHolidaysJson(int year) {
         validateYear(year);
         List<HolidayDate> holidays = getHolidaysForYear(year);
         JSONArray array = new JSONArray();
@@ -228,9 +313,20 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
     /**
      * AJAX endpoint for fetching holiday data as JSON.
      */
-    public void doHolidaysJson(@QueryParameter int year, StaplerResponse rsp) throws Exception {
+    public void doHolidaysJson(StaplerRequest req, StaplerResponse rsp) throws Exception {
+        LOGGER.info("doHolidaysJson called with URL: " + req.getRequestURI());
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+        String yearStr = req.getParameter("year");
+        LOGGER.info("Year parameter: " + yearStr);
+        if (yearStr == null || yearStr.isEmpty()) {
+            yearStr = String.valueOf(LocalDate.now().getYear());
+        }
+        int year = Integer.parseInt(yearStr);
+        validateYear(year);
         rsp.setContentType("application/json;charset=UTF-8");
-        rsp.getWriter().write(getHolidaysJson(year));
+        String json = getHolidaysJson(year);
+        LOGGER.info("Returning JSON for year " + year + ": " + json.substring(0, Math.min(100, json.length())));
+        rsp.getWriter().write(json);
     }
 
     private void writeJsonDownload(StaplerResponse rsp, String json, String filename) throws IOException {
@@ -260,5 +356,19 @@ public class HolidayManagementLink extends ManagementLink implements StaplerProx
         if (type != null && !"HOLIDAY".equals(type) && !"WORKDAY".equals(type)) {
             throw new IllegalArgumentException("Invalid type: " + type + ", must be HOLIDAY or WORKDAY");
         }
+    }
+
+    private boolean isAjaxRequest(StaplerRequest req) {
+        String header = req.getHeader("X-Requested-With");
+        return header != null && "XMLHttpRequest".equals(header);
+    }
+
+    private void writeJsonResult(StaplerResponse rsp, boolean success, String message, int count) throws IOException {
+        rsp.setContentType("application/json;charset=UTF-8");
+        JSONObject result = new JSONObject();
+        result.put("success", success);
+        result.put("message", message);
+        result.put("count", count);
+        rsp.getWriter().write(result.toString());
     }
 }

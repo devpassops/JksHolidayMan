@@ -1,186 +1,261 @@
-(function () {
-    "use strict";
+(function() {
+    /*
+     * URL compatibility strategy for both deployment modes:
+     * - Java direct start: Jenkins at http://host:port/ (no context path)
+     * - Tomcat deployment: Jenkins at http://host:port/jenkins/ (with context path)
+     *
+     * Page-level operations (holidaysJson, deleteHoliday, deleteYear, importYear, importFile):
+     *   Use relative URLs, browser resolves them based on current page URL.
+     *   Works with any context path automatically.
+     *
+     * Jenkins root-level operations (crumbIssuer):
+     *   Use Jenkins-provided rootURL from data attribute, which always includes
+     *   the correct context path.
+     */
 
-    function getRootUrl() {
+    function getJenkinsRootUrl() {
         var el = document.getElementById("holiday-data-container");
-        if (el && el.dataset.rooturl) return el.dataset.rooturl;
-        return document.head.dataset.rooturl || "";
+        if (el && el.dataset.jenkinsroot) return el.dataset.jenkinsroot;
+        // Fallback: compute from current page URL for /manage/{urlName}/ pattern
+        var loc = window.location;
+        var path = loc.pathname;
+        if (path.endsWith('/')) path = path.slice(0, -1);
+        var segments = path.split('/');
+        // Remove last 2 segments (manage, holiday-management) to get context path
+        segments.splice(segments.length - 2, 2);
+        var contextPath = segments.join('/') || '';
+        return loc.origin + contextPath + '/';
     }
 
-    function loadYearHolidays(year) {
-        var container = document.getElementById("holiday-table-container");
+    function getCrumb() {
+        var crumbUrl = getJenkinsRootUrl() + 'crumbIssuer/api/json';
+        return fetch(crumbUrl, { credentials: 'same-origin' })
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch crumb: ' + response.status);
+                }
+                var contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Not authenticated or crumb issuer disabled');
+                }
+                return response.json();
+            });
+    }
+
+    /**
+     * POST with crumb using URLSearchParams (application/x-www-form-urlencoded).
+     * The crumb is sent BOTH as a form parameter AND as a request header.
+     */
+    function postWithCrumb(url, params) {
+        return getCrumb().then(function(crumbData) {
+            var body = new URLSearchParams();
+            body.append(crumbData.crumbRequestField, crumbData.crumb);
+            for (var key in params) {
+                if (params.hasOwnProperty(key)) {
+                    body.append(key, params[key]);
+                }
+            }
+            var headers = {};
+            headers[crumbData.crumbRequestField] = crumbData.crumb;
+            headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            headers['X-Requested-With'] = 'XMLHttpRequest';
+            return fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: headers,
+                body: body.toString()
+            });
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Operation failed');
+            }
+        }).catch(function(err) {
+            alert('Error: ' + err.message);
+        });
+    }
+
+    /**
+     * File upload with crumb using FormData (multipart/form-data).
+     * The crumb is sent as a request header (not in FormData body) because
+     * Jenkins CrumbFilter cannot reliably parse crumb from multipart requests.
+     */
+    function uploadFileWithCrumb(url, formData) {
+        return getCrumb().then(function(crumbData) {
+            var headers = {};
+            headers[crumbData.crumbRequestField] = crumbData.crumb;
+            headers['X-Requested-With'] = 'XMLHttpRequest';
+            return fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: headers,
+                body: formData
+            });
+        }).then(function(response) {
+            return response.json();
+        }).then(function(data) {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Import failed');
+            }
+        }).catch(function(err) {
+            alert('Error: ' + err.message);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var container = document.getElementById('holiday-data-container');
         if (!container) return;
 
-        var url = getRootUrl() + "manage/holiday-management/holidaysJson?year=" + year;
-
-        fetch(url)
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                renderHolidayTable(container, data, year);
-            })
-            .catch(function (err) {
-                container.innerHTML = '<p style="color:red;">Failed to load holiday data: ' + err.message + '</p>';
-            });
-    }
-
-    function renderHolidayTable(container, holidays, year) {
-        if (!holidays || holidays.length === 0) {
-            container.innerHTML = '<p style="color:#666;">No holiday data for year ' + year + '</p>';
-            return;
-        }
-
-        var html = '<table class="holiday-table">';
-        html += '<thead><tr><th>Date</th><th>Name</th><th>Type</th><th>Action</th></tr></thead>';
-        html += '<tbody>';
-
-        holidays.forEach(function (h) {
-            var typeClass = h.isHoliday ? 'type-holiday' : 'type-workday';
-            var typeLabel = h.isHoliday ? 'Holiday' : 'Workday (Adjusted)';
-            html += '<tr>';
-            html += '<td>' + h.date + '</td>';
-            html += '<td>' + (h.name || '-') + '</td>';
-            html += '<td class="' + typeClass + '">' + typeLabel + '</td>';
-            html += '<td><a href="#" class="delete-btn" data-date="' + h.date + '" title="Delete">Delete</a></td>';
-            html += '</tr>';
-        });
-
-        html += '</tbody></table>';
-
-        var holidayCount = holidays.filter(function (h) { return h.isHoliday; }).length;
-        var workdayCount = holidays.filter(function (h) { return !h.isHoliday; }).length;
-        html += '<p style="margin-top:8px;color:#666;font-size:12px;">';
-        html += 'Total: ' + holidays.length + ' entries';
-        html += ' (Holidays: ' + holidayCount + ', Adjusted Workdays: ' + workdayCount + ')';
-        html += '</p>';
-
-        container.innerHTML = html;
-
-        // Attach delete handlers
-        container.querySelectorAll('.delete-btn').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                if (confirm('Are you sure you want to delete the holiday entry for ' + btn.dataset.date + '?')) {
-                    deleteHoliday(btn.dataset.date, year);
+        // ===== Import Year (API) Handler =====
+        var importYearBtn = document.getElementById('importYearBtn');
+        if (importYearBtn) {
+            importYearBtn.addEventListener('click', function() {
+                var yearInput = document.getElementById('importYearInput');
+                var year = yearInput ? parseInt(yearInput.value) : new Date().getFullYear();
+                if (!year || year < 2020 || year > 2099) {
+                    alert('Please enter a valid year (2020-2099)');
+                    return;
+                }
+                if (confirm('Import holiday data for year ' + year + ' from API?')) {
+                    postWithCrumb('importYear', { year: year });
                 }
             });
-        });
-    }
+        }
 
-    function deleteHoliday(date, year) {
-        // Fetch crumb token for CSRF protection
-        fetch(getRootUrl() + 'crumbIssuer/api/json')
-            .then(function (response) { return response.json(); })
-            .then(function (crumbData) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = getRootUrl() + 'manage/holiday-management/deleteHoliday';
-                
-                // Add crumb token
-                var crumbInput = document.createElement('input');
-                crumbInput.type = 'hidden';
-                crumbInput.name = crumbData.crumbRequestField;
-                crumbInput.value = crumbData.crumb;
-                form.appendChild(crumbInput);
-                
-                // Add date parameter
-                var dateInput = document.createElement('input');
-                dateInput.type = 'hidden';
-                dateInput.name = 'date';
-                dateInput.value = date;
-                form.appendChild(dateInput);
-                
-                document.body.appendChild(form);
-                form.submit();
-            })
-            .catch(function (err) {
-                alert('Failed to get security token: ' + err.message);
+        // ===== Import File Handler =====
+        var importFileBtn = document.getElementById('importFileBtn');
+        if (importFileBtn) {
+            importFileBtn.addEventListener('click', function() {
+                var fileInput = document.getElementById('importFileInput');
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    alert('Please select a file before importing.');
+                    return;
+                }
+                var file = fileInput.files[0];
+                if (file.size > 2 * 1024 * 1024) {
+                    alert('File too large. Maximum size is 2MB.');
+                    return;
+                }
+                if (confirm('Import holiday data from file "' + file.name + '"?')) {
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    uploadFileWithCrumb('importFile', formData);
+                }
             });
-    }
+        }
 
-    function initYearTabs() {
-        var tabs = document.querySelectorAll('.year-tab');
+        // ===== Holiday Data Display =====
+        var tabs = container.querySelectorAll('.year-tab');
+        var tableContainer = document.getElementById('holiday-table-container');
+
         if (tabs.length === 0) return;
 
-        // Find and activate current year tab, or first tab if current year not found
+        // Activate current year tab, or first tab
         var currentYear = new Date().getFullYear();
         var currentYearTab = null;
-        tabs.forEach(function (tab) {
-            if (parseInt(tab.dataset.year) === currentYear) {
+        tabs.forEach(function(tab) {
+            if (parseInt(tab.getAttribute('data-year')) === currentYear) {
                 currentYearTab = tab;
             }
         });
+        activateTab(currentYearTab || tabs[0]);
 
-        // Activate the current year tab or first tab
-        var activeTab = currentYearTab || tabs[0];
-        activeTab.classList.add('active');
-        activeTab.style.backgroundColor = '#4a90d9';
-        activeTab.style.color = '#fff';
-        loadYearHolidays(activeTab.dataset.year);
-
-        // Add click handlers for year tabs
-        tabs.forEach(function (tab) {
-            tab.addEventListener('click', function (e) {
+        // Year tab click handlers
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function(e) {
                 e.preventDefault();
-                tabs.forEach(function (t) { 
-                    t.classList.remove('active'); 
-                    t.style.backgroundColor = '#e8e8e8';
-                    t.style.color = '#333';
+                activateTab(tab);
+            });
+        });
+
+        // Delete year button handlers
+        container.querySelectorAll('.delete-year-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var year = btn.getAttribute('data-year');
+                if (confirm('Delete all holiday data for year ' + year + '?')) {
+                    postWithCrumb('deleteYear', { year: year });
+                }
+            });
+        });
+
+        function activateTab(tab) {
+            tabs.forEach(function(t) {
+                t.classList.remove('active');
+                t.style.backgroundColor = '#e8e8e8';
+                t.style.color = '#333';
+            });
+            tab.classList.add('active');
+            tab.style.backgroundColor = '#4a90d9';
+            tab.style.color = '#fff';
+            loadHolidayData(tab.getAttribute('data-year'));
+        }
+
+        function loadHolidayData(year) {
+            fetch('holidaysJson?year=' + year, { credentials: 'same-origin' })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    var contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Not authenticated or permission denied');
+                    }
+                    return response.json();
+                })
+                .then(function(data) { renderTable(data, year); })
+                .catch(function(err) {
+                    tableContainer.innerHTML = '<p style="color:red;">Failed to load holiday data: ' + err.message + '</p>';
                 });
-                tab.classList.add('active');
-                tab.style.backgroundColor = '#4a90d9';
-                tab.style.color = '#fff';
-                loadYearHolidays(tab.dataset.year);
-            });
-        });
+        }
 
-        // Add click handlers for delete year buttons
-        var deleteYearBtns = document.querySelectorAll('.delete-year-btn');
-        deleteYearBtns.forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                var year = btn.dataset.year;
-                deleteYear(year);
-            });
-        });
-    }
+        function renderTable(data, year) {
+            if (!data || data.length === 0) {
+                tableContainer.innerHTML = '<p style="color:#666;">No holiday data for year ' + year + '</p>';
+                return;
+            }
 
-    function deleteYear(year) {
-        if (!confirm('Delete all holiday data for year ' + year + '? This action cannot be undone.')) return;
-        
-        // Fetch crumb token for CSRF protection
-        fetch(getRootUrl() + 'crumbIssuer/api/json')
-            .then(function (response) { return response.json(); })
-            .then(function (crumbData) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = getRootUrl() + 'manage/holiday-management/deleteYear';
-                
-                // Add crumb token
-                var crumbInput = document.createElement('input');
-                crumbInput.type = 'hidden';
-                crumbInput.name = crumbData.crumbRequestField;
-                crumbInput.value = crumbData.crumb;
-                form.appendChild(crumbInput);
-                
-                // Add year parameter
-                var yearInput = document.createElement('input');
-                yearInput.type = 'hidden';
-                yearInput.name = 'year';
-                yearInput.value = year;
-                form.appendChild(yearInput);
-                
-                document.body.appendChild(form);
-                form.submit();
-            })
-            .catch(function (err) {
-                alert('Failed to get security token: ' + err.message);
+            var html = '<table class="holiday-table"><thead><tr><th>Date</th><th>Name</th><th>Type</th><th>Action</th></tr></thead><tbody>';
+            data.forEach(function(item) {
+                var typeClass = item.isHoliday ? 'type-holiday' : 'type-workday';
+                var typeLabel = item.isHoliday ? 'Holiday' : 'Workday (Adjusted)';
+                html += '<tr>' +
+                    '<td>' + esc(item.date) + '</td>' +
+                    '<td>' + esc(item.name || '-') + '</td>' +
+                    '<td class="' + typeClass + '">' + typeLabel + '</td>' +
+                    '<td><a href="#" class="delete-btn" data-date="' + esc(item.date) + '" title="Delete">Delete</a></td>' +
+                    '</tr>';
             });
-    }
+            html += '</tbody></table>';
 
-    // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initYearTabs);
-    } else {
-        initYearTabs();
-    }
+            var holidayCount = data.filter(function(h) { return h.isHoliday; }).length;
+            var workdayCount = data.filter(function(h) { return !h.isHoliday; }).length;
+            html += '<p style="margin-top:8px;color:#666;font-size:12px;">';
+            html += 'Total: ' + data.length + ' entries';
+            html += ' (Holidays: ' + holidayCount + ', Adjusted Workdays: ' + workdayCount + ')';
+            html += '</p>';
+
+            tableContainer.innerHTML = html;
+
+            tableContainer.querySelectorAll('.delete-btn').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var date = btn.getAttribute('data-date');
+                    if (confirm('Are you sure you want to delete the holiday entry for ' + date + '?')) {
+                        postWithCrumb('deleteHoliday', { date: date });
+                    }
+                });
+            });
+        }
+
+        function esc(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    });
 })();

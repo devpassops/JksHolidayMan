@@ -17,6 +17,15 @@
 - 权限控制 - 仅管理员可访问和操作
 - 中英双语支持
 
+### Bug Fixes
+
+- 修复节假日数据加载 404 错误 - 将 Stapler getter 方法改为 private，消除路由冲突
+- 修复删除节假日数据 403 (CSRF) 错误 - POST 请求改用 URLSearchParams (application/x-www-form-urlencoded) 替代 FormData，crumb 同时通过请求头和表单参数双重传递
+- 修复文件上传 crumb 403 问题 - 文件上传使用 FormData，crumb 仅通过请求头传递，避免 multipart 解析不可靠
+- 修复离线导入未选文件跳转错误页问题 - 前端验证文件选择，未选文件弹窗提示不提交
+- 修复 API 导入和离线导入成功/失败无提示问题 - 所有 POST 操作改为 AJAX，成功/失败弹窗提示后刷新页面
+- 修复 URL 兼容性问题 - 页面级操作使用相对 URL，crumbIssuer 使用 Jelly 注入的 rootURL，兼容 Java 直启和 Tomcat 两种部署模式
+
 ### Technical
 
 - 兼容 Jenkins 2.277.4 及后续版本
@@ -24,3 +33,4 @@
 - Jenkins Plugin Parent POM 4.40
 - 使用 net.sf.json (Jenkins/Stapler 内置) 替代 Jackson
 - 使用 StaplerProxy 强制权限校验
+- 所有 POST 端点支持 AJAX (X-Requested-With) 请求返回 JSON，传统表单请求仍返回 redirect

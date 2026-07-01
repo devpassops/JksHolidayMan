@@ -6,31 +6,27 @@
             <h1>${%pageTitle}</h1>
             <p>${%pageDescription}</p>
 
-            <div id="holiday-mgmt-root" data-rooturl="${rootURL}/"></div>
-
             <!-- Online Import Section -->
             <f:section title="${%importOnlineSection}">
-                <form method="post" action="importYear" name="importOnlineForm">
-                    <f:entry title="${%importYear}" description="${%importYearDesc}">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <input type="number" name="year" value="${it.currentYear}" min="2020" max="2099"
-                                   style="width:100px;padding:4px 8px;"/>
-                            <input type="submit" value="${%importButton}" class="jenkins-button jenkins-button--primary" style="padding:4px 12px;"/>
-                        </div>
-                    </f:entry>
-                </form>
+                <f:entry title="${%importYear}" description="${%importYearDesc}">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="number" id="importYearInput" value="${it.currentYear}" min="2020" max="2099"
+                               style="width:100px;padding:4px 8px;"/>
+                        <button type="button" id="importYearBtn" class="jenkins-button jenkins-button--primary"
+                                style="padding:4px 12px;">${%importButton}</button>
+                    </div>
+                </f:entry>
             </f:section>
 
             <!-- Offline Import Section -->
             <f:section title="${%importOfflineSection}">
-                <form method="post" action="importFile" enctype="multipart/form-data" name="importFileForm">
-                    <f:entry description="${%importFileDesc}">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <input type="file" name="file" accept=".json" style="max-width:400px;"/>
-                            <input type="submit" value="${%importFileButton}" class="jenkins-button jenkins-button--primary" style="padding:4px 12px;"/>
-                        </div>
-                    </f:entry>
-                </form>
+                <f:entry description="${%importFileDesc}">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="file" id="importFileInput" accept=".json" style="max-width:400px;"/>
+                        <button type="button" id="importFileBtn" class="jenkins-button jenkins-button--primary"
+                                style="padding:4px 12px;">${%importFileButton}</button>
+                    </div>
+                </f:entry>
             </f:section>
 
             <!-- Export Section -->
@@ -54,9 +50,9 @@
 
             <!-- Add Holiday Section -->
             <f:section title="${%addSection}">
-                <form method="post" action="addHoliday" name="addForm">
+                <f:form method="post" action="addHoliday" name="addForm">
                     <f:entry title="${%dateField}">
-                        <input type="text" name="date" placeholder="2026-01-01" pattern="\d{4}-\d{2}-\d{2}" style="width:150px;padding:4px 8px;"/>
+                        <input type="date" name="date" style="padding:4px 8px;"/>
                     </f:entry>
                     <f:entry title="${%nameField}">
                         <input type="text" name="name" style="width:200px;padding:4px 8px;"/>
@@ -68,14 +64,14 @@
                         </select>
                     </f:entry>
                     <f:entry>
-                        <input type="submit" value="${%addButton}" class="jenkins-button jenkins-button--primary" style="padding:4px 12px;"/>
+                        <f:submit value="${%addButton}"/>
                     </f:entry>
-                </form>
+                </f:form>
             </f:section>
 
             <!-- Holiday Data Section -->
             <f:section title="${%dataSection}">
-                <div id="holiday-data-container" data-rooturl="${rootURL}/">
+                <div id="holiday-data-container" data-jenkinsroot="${rootURL}/">
                     <j:choose>
                         <j:when test="${it.availableYears.isEmpty()}">
                             <p style="color:#666;">${%noData}</p>
@@ -85,7 +81,7 @@
                                 <j:forEach var="year" items="${it.availableYears}">
                                     <div style="display:flex;align-items:center;gap:4px;">
                                         <a href="#" class="year-tab" data-year="${year}"
-                                           style="padding:6px 14px;border-radius:4px;text-decoration:none;color:#333;">
+                                           style="padding:6px 14px;background:#e8e8e8;border-radius:4px;text-decoration:none;color:#333;">
                                             ${year}
                                         </a>
                                         <a href="#" class="delete-year-btn" data-year="${year}" title="Delete all data for ${year}"

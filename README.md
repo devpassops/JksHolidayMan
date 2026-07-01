@@ -4,15 +4,15 @@ Version: **1.0.0**
 
 Jenkins 节假日管理插件 - 管理官方节假日和调休工作日，控制定时任务的节假日执行策略。
 
-支持 Jenkins 2.277.4 及后续版本。
+支持 Jenkins 2.277.4 及后续版本，兼容 Java 直启和 Tomcat 部署两种模式。
 
 ## 功能特性
 
 - **节假日数据管理** - 按年份导入/管理中国法定节假日及调休工作日
-- **在线导入** - 从 timor.tech API 自动获取中国法定节假日数据
-- **离线导入** - 上传 JSON 文件导入节假日数据
+- **在线导入** - 从 timor.tech API 自动获取中国法定节假日数据，导入成功/失败弹窗提示
+- **离线导入** - 上传 JSON 文件导入节假日数据，未选文件弹窗提示不跳转错误页
 - **导出** - 按年份或全量导出节假日数据为 JSON 文件
-- **手动维护** - 支持手动添加/删除节假日条目
+- **手动维护** - 支持手动添加/删除节假日条目，操作结果弹窗提示
 - **定时构建节假日控制** - 替代原生"Build periodically"，支持三种策略：
   - **排除节假日**（默认）- 仅在工作日执行（含调休工作日，跳过节假日和周末）
   - **包含节假日** - 正常定时执行，不进行节假日过滤
@@ -82,3 +82,5 @@ mvn clean package -DskipTests
 - Jenkins Plugin Parent POM 4.40
 - Jenkins BOM bom-2.277.x
 - json-lib (net.sf.json, Jenkins/Stapler 内置)
+- 兼容 Java 直启 (无 context path) 和 Tomcat (有 context path) 两种部署模式
+- AJAX POST 操作支持 JSON 响应，传统表单提交仍支持 redirect
