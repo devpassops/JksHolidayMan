@@ -2,6 +2,11 @@
 
 ## 1.0.1
 
+### Features
+
+- 定时构建日程表支持多行 Cron 表达式（每行一个计划），输入框改为可下拉扩大的多行文本区域
+- 定时构建 Cron 表达式格式校验 - 调用父类 TimerTrigger 校验逻辑
+
 ### Bug Fixes
 
 - 修复删除节假日数据返回 HTML 而非 JSON 导致解析报错 - 所有 POST 端点支持 AJAX JSON 响应
