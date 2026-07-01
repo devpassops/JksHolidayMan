@@ -84,3 +84,7 @@ mvn clean package -DskipTests
 - json-lib (net.sf.json, Jenkins/Stapler 内置)
 - 兼容 Java 直启 (无 context path) 和 Tomcat (有 context path) 两种部署模式
 - AJAX POST 操作支持 JSON 响应，传统表单提交仍支持 redirect
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=devpassops/JksHolidayMan&type=date&legend=top-left)](https://www.star-history.com/?repos=devpassops%2FJksHolidayMan&type=date&legend=top-left)
