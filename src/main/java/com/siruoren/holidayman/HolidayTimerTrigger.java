@@ -81,7 +81,7 @@ public class HolidayTimerTrigger extends TimerTrigger {
         }
 
         public FormValidation doCheckSpec(@AncestorInPath Item item, @QueryParameter String value) {
-            return FormValidation.ok();
+            return super.doCheckSpec(value, item);
         }
 
         public HolidayPolicy[] getHolidayPolicies() {

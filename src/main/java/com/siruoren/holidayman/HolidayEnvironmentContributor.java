@@ -11,8 +11,13 @@ import java.io.IOException;
 import java.time.LocalDate;
 
 /**
- * Contributes HOLIDAY_IS_WORKDAY and HOLIDAY_IS_HOLIDAY environment variables
+ * Contributes DAY_IS_WORKDAY, DAY_IS_HOLIDAY and HOLIDAY_NAME environment variables
  * to builds, allowing Freestyle and Pipeline jobs to check holiday status.
+ * <p>
+ * Available environment variables:
+ * - DAY_IS_WORKDAY: true if today is a workday (regular weekday or adjusted workday)
+ * - DAY_IS_HOLIDAY: true if today is an explicitly marked holiday
+ * - HOLIDAY_NAME: the name of today's holiday (only set when DAY_IS_HOLIDAY is true)
  */
 @Extension
 public class HolidayEnvironmentContributor extends EnvironmentContributor {
@@ -30,9 +35,9 @@ public class HolidayEnvironmentContributor extends EnvironmentContributor {
 
         if (isHoliday) {
             String name = service.getHolidayName(today);
-            if (name != null) {
-                envs.put("HOLIDAY_NAME", name);
-            }
+            envs.put("HOLIDAY_NAME", name != null ? name : "");
+        } else {
+            envs.put("HOLIDAY_NAME", "");
         }
     }
 }
