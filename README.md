@@ -40,10 +40,10 @@ Jenkins 节假日管理插件 - 管理官方节假日和调休工作日，控制
 
 **快速下载当年节假日 JSON**：点击下方链接直接下载当前年份的节假日数据：
 ```bash
-curl -o holiday-2026.json https://timor.tech/api/holiday/2026
+curl -o holiday.json https://timor.tech/api/holiday/year
 ```
 
-或直接访问：[下载 2026 年节假日 JSON](https://timor.tech/api/holiday/2026)
+或直接访问：[下载 节假日 JSON](https://timor.tech/api/holiday/year)
 
 JSON 文件格式：
 ```json
